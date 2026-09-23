@@ -1,0 +1,19 @@
+[Unit]
+Description=xdnmb_reader API (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=xdnmb
+Group=xdnmb
+WorkingDirectory=/opt/xdnmb-reader
+EnvironmentFile=/opt/xdnmb-reader/.env
+ExecStart=/opt/xdnmb-reader/backend/.venv/bin/python -m uvicorn app.main:app --host ${THREAD_READER_HOST} --port ${THREAD_READER_PORT} --app-dir /opt/xdnmb-reader/backend
+Restart=always
+RestartSec=3
+# 只允许写自己的数据目录
+ReadWritePaths=/opt/xdnmb-reader/backend/data
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

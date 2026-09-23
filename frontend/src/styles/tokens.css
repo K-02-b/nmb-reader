@@ -1,0 +1,71 @@
+/* 设计令牌：主题、字号、行距、字体、亮度。组件样式不写死颜色与尺寸。 */
+
+:root {
+  --accent: #6ea8fe;
+  --font-size-base: 15px;
+  --line-height-base: 1.75;
+  --brightness: 100%;
+  --header-h: 61px; /* 顶栏实际高度（.app-header-inner 的 padding + 行高），吸顶元素用它对齐 */
+  --content-max: 1180px; /* 正文最大宽度，正文与右侧工具栏都按它算留白 */
+  --dock-w: 444px; /* 右侧工具栏宽度：面板 400 + 图标栏 44 */
+  --dock-rail: 44px; /* 只放图标的那条竖栏 */
+  --dock-gap: 24px; /* 正文与工具栏之间的空档 */
+  /* 竖栏占掉的一侧空间：竖栏 + 空档 + 贴边留白。收起时正文按它左右对称留白，竖栏就不会压住卡片 */
+  --dock-room: calc(var(--dock-rail) + var(--dock-gap) + 16px);
+  /* 正文宽度：收起时在「减去两侧竖栏空间」的中间区域里居中 */
+  --content-w: min(var(--content-max), calc(100% - var(--dock-room) * 2));
+  /* 正文左边距：展开时沿用同一个值，所以左边那条线不会动 */
+  --content-left: max(var(--dock-room), calc((100% - var(--content-w)) / 2));
+  /* 展开时正文还能用的宽度：右边让给整个工具栏 */
+  --content-w-dock: min(var(--content-max), calc(100% - var(--content-left) - var(--dock-w) - var(--dock-gap) - 16px));
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font-body:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-serif: 'Songti SC', 'Noto Serif SC', 'SimSun', serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] {
+  --bg: #14161a;
+  --bg-soft: #191c21;
+  --surface: #1e2229;
+  --surface-2: #252a33;
+  --border: #2f3540;
+  --text: #e6e9ef;
+  --text-dim: #9aa4b2;
+  --text-faint: #6b7482;
+  --ok: #57d38c;
+  --warn: #e8b23d;
+  --danger: #ef6b6b;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --quote-bg: #232833;
+  /* 让原生滚动条、勾选框、下拉框跟着主题走，否则深色页面里会冒出白条 */
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f4f5f7;
+  --bg-soft: #eceef2;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --border: #dcdfe6;
+  --text: #1f2328;
+  --text-dim: #5c6672;
+  --text-faint: #8b949e;
+  --ok: #1a7f4b;
+  --warn: #97660a;
+  --danger: #c0392b;
+  --shadow: 0 8px 24px rgba(20, 30, 50, 0.08);
+  --quote-bg: #f0f2f6;
+  color-scheme: light;
+}
+
+:root[data-font='serif'] {
+  --font-body: var(--font-serif);
+}
+
+:root[data-font='mono'] {
+  --font-body: var(--font-mono);
+}

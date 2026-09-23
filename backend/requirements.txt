@@ -1,0 +1,18 @@
+PyMySQL==1.2.3
+SQLAlchemy==2.0.54
+anyio==4.15.1
+fastapi==0.141.1
+httpx==0.28.1
+psycopg-binary==3.3.6
+psycopg==3.3.6
+pydantic-settings==2.15.0
+pydantic==2.13.5
+cryptography==50.0.1
+zxing-cpp==3.1.1
+pillow==12.3.0
+# 导出 docx / pdf
+python-docx==1.2.0
+fpdf2==2.8.8
+python-multipart==0.0.32
+starlette==1.6.0
+uvicorn==0.53.0

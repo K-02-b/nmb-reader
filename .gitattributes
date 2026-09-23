@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+# 二进制/生成物不做行尾转换，也别在 diff 里当文本展示
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.db binary
+*.sqlite3 binary
+
+# 锁文件在 review 里折叠
+package-lock.json linguist-generated=true

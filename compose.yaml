@@ -1,0 +1,136 @@
+# 匿名版阅读器 —— 生产形态：PostgreSQL（事实来源）+ Manticore（检索引擎）
+#
+#   cp .env.example .env      # 填 POSTGRES_PASSWORD / Cookie 等
+#   make up                   # 构建并启动 db + search + api + worker
+#   make init-compose         # 首次初始化：建表 + 建管理员 + 重建索引
+#   → http://127.0.0.1:8080
+#
+# 两个数据层各司其职（见 docs/architecture.md）：
+#   db     关系库：帖子/串/标签/用户/书签/任务状态，唯一事实来源，必须备份
+#   search 检索引擎：正文倒排索引，可由 db 随时重建，不备份
+# 只用 SQLite 的话不需要这个文件，用 compose.sqlite.yaml。
+
+name: xdnmb-reader
+
+x-app-env: &app-env
+  # 关系库
+  THREAD_READER_DB_URL: postgresql+psycopg://xdnmb:${POSTGRES_PASSWORD:-xdnmb}@db:5432/xdnmb
+  # 检索引擎
+  THREAD_READER_SEARCH_BACKEND: manticore
+  THREAD_READER_MANTICORE_URL: http://search:9308
+  # 会话（HTTPS 下务必设成 true）
+  THREAD_READER_SESSION_TTL: "43200"
+  THREAD_READER_COOKIE_SECURE: ${THREAD_READER_COOKIE_SECURE:-false}
+  # 首次启动创建的管理员口令（不设则为 admin，并写一条 warn 日志）
+  THREAD_READER_ADMIN_PASSWORD: ${THREAD_READER_ADMIN_PASSWORD:-admin}
+  # 登录 Cookie：只从环境读，不入库、不进镜像
+  THREAD_READER_NMB_COOKIE: ${THREAD_READER_NMB_COOKIE:-}
+  THREAD_READER_FETCH_PAUSE: ${THREAD_READER_FETCH_PAUSE:-1.2}
+  THREAD_READER_FETCH_MAX_PAGES: ${THREAD_READER_FETCH_MAX_PAGES:-2000}
+  THREAD_READER_FETCH_MAX_PAGES_CEILING: ${THREAD_READER_FETCH_MAX_PAGES_CEILING:-20000}
+  # 并发度：对站点速率 ≈ 并发 / FETCH_PAUSE
+  THREAD_READER_FETCH_CONCURRENCY: ${THREAD_READER_FETCH_CONCURRENCY:-4}
+  THREAD_READER_FETCH_CONCURRENCY_CEILING: ${THREAD_READER_FETCH_CONCURRENCY_CEILING:-8}
+  # 图片并发（静态 CDN）
+  THREAD_READER_IMAGE_CONCURRENCY: ${THREAD_READER_IMAGE_CONCURRENCY:-4}
+  THREAD_READER_IMAGES_ENABLED: ${THREAD_READER_IMAGES_ENABLED:-true}
+  # worker 由独立容器负责，api 容器内不要再起一个
+  THREAD_READER_WORKER_ENABLED: "false"
+
+x-app-build: &app-build
+  context: .
+  dockerfile: deploy/docker/Dockerfile
+  args:
+    # 默认走国内源；想切回官方源在 .env 里覆盖（见 .env.example）
+    NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+    PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    # Docker Hub 不可达时改 .env 指向国内加速器（见 .env.example）
+    NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm-slim}
+    PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+
+x-app-depends: &app-depends
+  db:
+    condition: service_healthy
+  # 检索引擎只等「启动」而不是 healthy：Manticore 没起来时应用会自动退化成 LIKE 检索，
+  # 不该因为健康检查写法差异把整个栈卡住（表结构由 app 首次写入时 CREATE IF NOT EXISTS）
+  search:
+    condition: service_started
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: xdnmb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xdnmb}
+      POSTGRES_DB: xdnmb
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xdnmb -d xdnmb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      # 首次启动要 initdb，给它足够的宽限期，否则初始化慢会被判成 unhealthy，把依赖它的 api/worker 卡住
+      start_period: 40s
+    restart: unless-stopped
+
+  search:
+    image: manticoresearch/manticore:latest
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - manticore-data:/var/lib/manticoresearch/data
+    healthcheck:
+      # 不依赖镜像里有没有 curl：直接用 bash 的 /dev/tcp 探端口
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9308' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: *app-build
+    environment:
+      <<: *app-env
+    ports:
+      - "${XDNMB_PORT:-8080}:8080"
+    volumes:
+      # 图片与备份：api 与 worker 共享
+      - appdata:/app/backend/data
+    depends_on: *app-depends
+    restart: unless-stopped
+
+  worker:
+    build: *app-build
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *app-env
+    volumes:
+      - appdata:/app/backend/data
+    depends_on: *app-depends
+    # worker 不提供 HTTP，镜像里的 api 健康检查对它没意义
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  # 一次性初始化：docker compose --profile init run --rm init
+  init:
+    build: *app-build
+    profiles: ["init"]
+    entrypoint: ["/bin/sh", "/app/deploy/docker/init.sh"]
+    environment:
+      <<: *app-env
+    volumes:
+      - appdata:/app/backend/data
+    depends_on: *app-depends
+    healthcheck:
+      disable: true
+    restart: "no"
+
+volumes:
+  pgdata:
+  manticore-data:
+  appdata:

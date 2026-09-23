@@ -1,0 +1,631 @@
+/* 页面专属样式：目录页条目、阅读页楼层、引用弹框、管理页行内编辑、登录页。 */
+
+/* ---- 目录页 ---- */
+
+.thread-row {
+  display: block;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.thread-row:last-child {
+  border-bottom: none;
+}
+.thread-row:hover {
+  background: var(--surface-2);
+}
+.thread-title-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.thread-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.thread-no {
+  color: var(--text-faint);
+  font-size: 0.8em;
+  font-family: var(--font-mono);
+}
+.thread-excerpt {
+  color: var(--text-dim);
+  font-size: 0.88em;
+  margin: 2px 0 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.thread-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78em;
+  color: var(--text-faint);
+}
+.thread-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.badge-board {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82em;
+}
+.badge-board:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.badge-board.active {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---- 右侧工具栏（阅读页与目录页共用） ---- */
+
+/* 阅读页的工具栏：固定在视口右侧，不占正文宽度。
+   展开时正文用 .container-dock 让出位置，所以面板不会压住内容。 */
+.tools-dock {
+  position: fixed;
+  top: var(--header-h);
+  bottom: 0;
+  /* 一直贴在屏幕右侧；正文展开时自己让位（.container-dock），所以不会互相压住 */
+  right: 16px;
+  z-index: 45;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* 面板收起时滑到竖栏后面，收完再卸载 */
+.tools-panel {
+  /* 固定宽度：--dock-w 就是它 + 44px 的图标栏，正文按这个数让位 */
+  width: min(400px, calc(100vw - 44px));
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: var(--shadow);
+  transform: translateX(100%);
+  opacity: 0;
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+.tools-panel[data-open='true'] {
+  transform: none;
+  opacity: 1;
+}
+
+.tools-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tools-head h3 {
+  font-size: 0.95rem;
+}
+.tools-close {
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+.tools-close:hover {
+  color: var(--accent);
+}
+
+.tools-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px 6px;
+}
+.tools-form .input {
+  flex: 1;
+  min-width: 0;
+}
+.tools-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 面板里的筛选行（书签用） */
+.tools-filters {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tools-filters .select {
+  flex: 1;
+  min-width: 0;
+}
+/* 串号是短输入；「检索书签内容」那种普通输入框占满整行 */
+.tools-filters .input.mono {
+  width: 120px;
+  flex: none;
+}
+
+/* 表单型面板（目录筛选、全文检索）自己会滚 */
+.tools-form-body {
+  padding: 14px;
+}
+.tools-form-body .field:last-of-type {
+  margin-bottom: 0;
+}
+
+/* 结果列表：和主串一样平铺，滚轮翻看 */
+.tools-body {
+  flex: 1;
+  overflow-y: auto;
+  /* 面板里滚到底不要把整页带着一起滚 */
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.tools-body::-webkit-scrollbar {
+  width: 8px;
+}
+.tools-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.tools-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tools-body .post {
+  border-bottom: 1px solid var(--border);
+}
+.tools-empty {
+  padding: 14px;
+}
+.tools-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.82em;
+}
+/* 面板顶部的页码：和主串一样放在内容上方 */
+.tools-pager {
+  border-bottom: 1px solid var(--border);
+}
+.tools-pager .pagination {
+  padding: 8px 14px;
+}
+
+/* 只放图标的一条竖栏 */
+.tools-rail {
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+.rail-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.rail-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.rail-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.rail-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0d1117;
+  font-size: 0.68em;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+
+/* 兜底：窄屏时面板铺满、竖栏贴边 */
+@media (max-width: 720px) {
+  .tools-panel {
+    width: calc(100vw - 44px);
+  }
+}
+
+/* 全文检索结果里的楼层：外层 .thread-row 已经有内边距，这里只留正文 */
+.post-bare {
+  padding: 4px 0 0;
+  border-bottom: none;
+}
+.post-bare:hover {
+  background: transparent;
+}
+
+/* 书签面板 */
+.bookmark-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px;
+}
+.bookmark-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.bookmark-item:last-child {
+  border-bottom: none;
+}
+.bookmark-jump {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+/* 书签主体是可点区域（跳楼），右边一列是「移除 / 编辑」 */
+.bookmark-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.bookmark-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+/* 书签名：没起名字就不占位 */
+.bookmark-title {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.bookmark-title-input {
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 0.9em;
+}
+.bookmark-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.85em;
+}
+.bookmark-excerpt {
+  color: var(--text-dim);
+  font-size: 0.85em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bookmark-jump:hover .bookmark-excerpt {
+  color: var(--text);
+}
+
+/* 顶部页码：不用滚到底就能翻页 */
+/* 顶部页码 + 分页方式：不用滚到底就能翻页 / 换分页口径 */
+.reader-pager-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.reader-pager-top .pagination {
+  padding: 4px 0 10px;
+}
+
+/* 底部页码 */
+.reader-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.post {
+  padding: 16px;
+  /* 「跳到该楼」「回到上次读到的那一楼」都要避开吸顶导航 */
+  scroll-margin-top: calc(var(--header-h) + 8px);
+}
+/* 楼与楼之间用一条底色带隔开，比一根细线更容易看出边界 */
+.post + .post {
+  border-top: 8px solid var(--bg-soft);
+}
+.post:hover {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+.post-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.post-name {
+  color: var(--text-dim);
+}
+.post-cookie,
+.post-no {
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+}
+.post-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.post-body .quote {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.post-body .quote:hover {
+  text-decoration: underline;
+}
+.post-body mark {
+  background: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.post-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.8em;
+}
+
+.post-image {
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--quote-bg);
+}
+.post-image img {
+  display: block;
+  max-width: min(420px, 100%);
+  max-height: 420px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.post-image-fallback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-faint);
+  font-size: 0.84em;
+}
+.post-image figcaption {
+  font-size: 0.8em;
+  color: var(--text-faint);
+}
+
+/* ---- 引用弹框 ---- */
+
+.quote-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.quote-popup {
+  width: min(680px, 100%);
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.quote-popup-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85em;
+}
+.quote-popup-body {
+  padding: 4px 14px 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+.quote-popup-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.85em;
+}
+@media (max-width: 640px) {
+  .quote-popup-backdrop {
+    padding: 10px;
+    align-items: flex-end;
+  }
+  .quote-popup {
+    max-height: 80vh;
+  }
+}
+
+/* ---- 管理页：行内标签编辑 ---- */
+
+/* 从首页「管理」跳进来时，短暂高亮目标行 */
+.row-focus > td {
+  animation: row-focus 2.4s ease-out;
+}
+@keyframes row-focus {
+  0%,
+  55% {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.editor-row > td {
+  background: var(--surface-2);
+  padding: 0;
+}
+.inline-editor {
+  padding: 12px 14px;
+  border-left: 3px solid var(--accent);
+}
+
+/* ---- 阅读页：悬浮的「返回原处」 ---- */
+
+/* 挂在 body 上（#root 有 filter，会变成 fixed 的包含块），所以真的不随正文滚动 */
+.return-fab {
+  position: fixed;
+  left: 16px;
+  top: 84px;
+  z-index: 40;
+  box-shadow: var(--shadow);
+}
+
+/* 窄屏时左侧放不下，挪到左下角 */
+@media (max-width: 1560px) {
+  .return-fab {
+    top: auto;
+    bottom: 16px;
+  }
+}
+
+/* ---- 管理页 ---- */
+
+/* 下载任务 / 系统日志：独立滚动框，滚到底自动续 */
+.list-scroll {
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.list-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.list-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.list-scroll .table td {
+  border-bottom: 1px solid var(--border);
+}
+.list-scroll .table tbody tr:last-child td {
+  border-bottom: none;
+}
+.list-more {
+  padding: 8px 12px;
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+/* 表单里的输入框统一尺寸：数字框不再比文本框小一圈。
+   底部对齐 + 同高，按钮和输入框的中心自然在同一水平线上（字段带 label 时也对得上）。 */
+.form-uniform {
+  align-items: flex-end;
+}
+.form-uniform .input,
+.form-uniform .select,
+.form-uniform .btn {
+  height: 36px;
+}
+.form-uniform .input[type='number'] {
+  width: 96px;
+}
+
+/* ---- 登录页 ---- */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(1000px 500px at 50% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent),
+    var(--bg);
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+.login-card h1 {
+  font-size: 1.25rem;
+  margin-bottom: 2px;
+}
+.login-brand span {
+  color: var(--accent);
+}

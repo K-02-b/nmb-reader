@@ -1,0 +1,7 @@
+/* 样式入口。顺序固定：令牌 → 基础 → 通用组件 → 页面骨架 → 页面专属。 */
+
+@import './tokens.css';
+@import './base.css';
+@import './components.css';
+@import './layout.css';
+@import './pages.css';

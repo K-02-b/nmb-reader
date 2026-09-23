@@ -1,0 +1,18 @@
+[Unit]
+Description=xdnmb_reader download worker
+After=network.target
+
+[Service]
+Type=simple
+User=xdnmb
+Group=xdnmb
+WorkingDirectory=/opt/xdnmb-reader/backend
+EnvironmentFile=/opt/xdnmb-reader/.env
+ExecStart=/opt/xdnmb-reader/backend/.venv/bin/python -m app.worker
+Restart=always
+RestartSec=5
+ReadWritePaths=/opt/xdnmb-reader/backend/data
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

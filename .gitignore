@@ -1,0 +1,37 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---- Node ----
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ---- 第三方二进制（make fetch-fonts 下载，见 README）----
+backend/app/assets/fonts/*.ttf
+
+# ---- 本地数据（数据库 / 图片 / 备份）----
+# 注意别写成裸的 images/：那会把 docs/images/ 里的截图一起忽略掉
+backend/data/
+/data/
+/data/images/
+*.db
+*.sqlite3
+
+# ---- 密钥与本地配置（含 Cookie）----
+.env
+.env.local
+*.local.json
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store

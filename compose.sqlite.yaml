@@ -1,0 +1,85 @@
+# 匿名版阅读器 —— 单机形态：SQLite + FTS5（容器化，零外部依赖）
+#
+#   cp .env.example .env
+#   make up-local          # 构建并启动 api + worker
+#   make init-local        # 首次初始化：建表 + 管理员 + 建 FTS5 索引
+#   → http://127.0.0.1:8080
+#
+# 与 compose.yaml（服务器形态：PostgreSQL + Manticore）的区别只在这两个数据层：
+#   - 关系库：SQLite 单文件（挂在 appdata 卷里）
+#   - 检索引擎：SQLite FTS5（trigram，中文按 ≥3 字子串命中）
+#
+# ⚠️ SQLite 是单写者：api 与 worker 两个进程共用一个库文件时靠 WAL + 忙等兜底，
+#    单人/小圈子够用；多人使用请用 compose.yaml 那套。
+
+name: xdnmb-reader-local
+
+x-local-env: &local-env
+  THREAD_READER_DB_URL: sqlite:////app/backend/data/app.db
+  THREAD_READER_SEARCH_BACKEND: fts5
+  THREAD_READER_SESSION_TTL: "43200"
+  THREAD_READER_COOKIE_SECURE: ${THREAD_READER_COOKIE_SECURE:-false}
+  # 首次启动创建 admin 的口令（不设则为 admin）
+  THREAD_READER_ADMIN_PASSWORD: ${THREAD_READER_ADMIN_PASSWORD:-admin}
+  # 用户 Cookie 的加密密钥；留空则自动生成并存到数据目录（data/secret.key）
+  THREAD_READER_SECRET_KEY: ${THREAD_READER_SECRET_KEY:-}
+  # 服务器级 Cookie（可选；多人实例请让用户在前端各自导入）
+  THREAD_READER_NMB_COOKIE: ${THREAD_READER_NMB_COOKIE:-}
+  THREAD_READER_FETCH_PAUSE: ${THREAD_READER_FETCH_PAUSE:-1.2}
+  THREAD_READER_FETCH_MAX_PAGES: ${THREAD_READER_FETCH_MAX_PAGES:-2000}
+  THREAD_READER_FETCH_MAX_PAGES_CEILING: ${THREAD_READER_FETCH_MAX_PAGES_CEILING:-20000}
+  # 并发度：对站点速率 ≈ 并发 / FETCH_PAUSE
+  THREAD_READER_FETCH_CONCURRENCY: ${THREAD_READER_FETCH_CONCURRENCY:-4}
+  THREAD_READER_FETCH_CONCURRENCY_CEILING: ${THREAD_READER_FETCH_CONCURRENCY_CEILING:-8}
+  # 图片并发（静态 CDN）
+  THREAD_READER_IMAGE_CONCURRENCY: ${THREAD_READER_IMAGE_CONCURRENCY:-4}
+  THREAD_READER_IMAGES_ENABLED: ${THREAD_READER_IMAGES_ENABLED:-true}
+  # worker 由独立容器负责，api 容器内不要再起一个
+  THREAD_READER_WORKER_ENABLED: "false"
+
+x-local-build: &local-build
+  context: .
+  dockerfile: deploy/docker/Dockerfile
+  args:
+    NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com/}
+    PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    # Docker Hub 不可达时改 .env 指向国内加速器（见 .env.example）
+    NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm-slim}
+    PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+
+services:
+  api:
+    build: *local-build
+    environment:
+      <<: *local-env
+    ports:
+      - "${XDNMB_PORT:-8080}:8080"
+    volumes:
+      - appdata:/app/backend/data
+    restart: unless-stopped
+
+  worker:
+    build: *local-build
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *local-env
+    volumes:
+      - appdata:/app/backend/data
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  init:
+    build: *local-build
+    profiles: ["init"]
+    entrypoint: ["/bin/sh", "/app/deploy/docker/init.sh"]
+    environment:
+      <<: *local-env
+    volumes:
+      - appdata:/app/backend/data
+    healthcheck:
+      disable: true
+    restart: "no"
+
+volumes:
+  appdata:

@@ -1,0 +1,44 @@
+# 构建上下文排除项：没有这个文件，frontend/node_modules、backend/.venv、
+# backend/data、.env 都会被送进 daemon（慢，而且 .env 里的 Cookie 有泄漏风险）。
+# 语法同 .gitignore。
+
+# 依赖与虚拟环境
+**/node_modules
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/*.egg-info
+
+# 第三方二进制（镜像里由 Dockerfile 下载）
+backend/app/assets/fonts/*.ttf
+
+# 构建产物（镜像里由 node 阶段重新生成）
+frontend/dist
+
+# 本地数据与运行时产物（数据库、图片、备份）
+backend/data
+data
+images
+*.db
+*.sqlite3
+
+# 密钥与本地配置
+.env
+.env.local
+*.local.json
+
+# 版本控制与编辑器
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# 文档类（镜像里用不到）
+*.md
+docs
