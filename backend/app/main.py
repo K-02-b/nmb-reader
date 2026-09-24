@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -95,6 +95,19 @@ def create_app() -> FastAPI:
         assets = dist / 'assets'
         if assets.is_dir():
             app.mount('/assets', StaticFiles(directory=assets), name='assets')
+
+        @app.middleware('http')
+        async def cache_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+            """带哈希的资源长缓存，其余一律先回源校验。
+
+            否则浏览器会拿旧的 index.html 启发式缓存继续跑旧 JS：部署完了页面还是老样子。
+            """
+            response = await call_next(request)
+            if request.url.path.startswith('/assets/'):
+                response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            elif not request.url.path.startswith('/api/'):
+                response.headers['Cache-Control'] = 'no-cache'
+            return response
 
         @app.get('/{full_path:path}', include_in_schema=False)
         def spa(full_path: str) -> FileResponse:

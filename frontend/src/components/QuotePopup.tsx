@@ -8,10 +8,10 @@ import { fmtIslandTime } from './format';
 interface Props {
   /** 点开的第一个引用楼层 */
   rootPostId: number;
-  /** 当前串（用于「跳到该楼」） */
-  threadId: number;
-  /** 点「跳到该楼」时调用 */
-  onGoToPost: (postId: number) => void;
+  /** 当前正在看的串；全文检索里点引用时目标可能在任何串，传 null 表示未知 */
+  threadId: number | null;
+  /** 点「跳到该楼」时调用，带上这一楼真正所属的串 */
+  onGoToPost: (postId: number, threadId: number) => void;
   onClose: () => void;
 }
 
@@ -128,7 +128,13 @@ export function QuotePopup({ rootPostId, threadId, onGoToPost, onClose }: Props)
 
         <div className="quote-popup-foot">
           <span className="spacer" />
-          <button className="btn btn-sm" disabled={!post} onClick={() => onGoToPost(currentId)}>
+          <button
+            className="btn btn-sm"
+            disabled={!post}
+            onClick={() => {
+              if (post) onGoToPost(currentId, post.threadId);
+            }}
+          >
             跳到该楼
           </button>
         </div>

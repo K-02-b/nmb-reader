@@ -77,13 +77,36 @@ def add_missing_columns() -> list[str]:
     return added
 
 
+def repair_post_flags() -> int:
+    """按 ID 重算派生字段 `is_po`，返回补回来的楼层数（幂等）。
+
+    岛上的 `(PO主)` 标记不是每层都带，老库据此写下来的 `is_po` 会漏掉大量楼主楼层；
+    同一串里显示 ID 与串首相同就是楼主，这条规则不需要重新抓串就能补。
+    先探一下有没有要改的：稳定状态下就省掉一次全表写。
+    """
+    from sqlalchemy import text
+
+    where = (
+        "is_po = :no AND cookie <> '' "
+        'AND EXISTS (SELECT 1 FROM thread WHERE thread.thread_id = post.thread_id AND thread.cookie = post.cookie)'
+    )
+    params = {'yes': True, 'no': False}
+    with engine.begin() as connection:
+        if connection.execute(text(f'SELECT 1 FROM post WHERE {where} LIMIT 1'), params).first() is None:
+            return 0
+        return connection.execute(text(f'UPDATE post SET is_po = :yes WHERE {where}'), params).rowcount or 0
+
+
 def init_db() -> list[str]:
-    """建表（结构见 app/models.py）、补新增列、创建 FTS5 虚拟表；返回补出来的列。"""
+    """建表（结构见 app/models.py）、补新增列、修正派生标记、创建 FTS5 虚拟表；返回本次改动。"""
     from . import models  # noqa: F401  确保模型已注册
     from .services.search import create_fts_table
 
     Base.metadata.create_all(bind=engine)
-    added = add_missing_columns()
+    notes = [f'新增列 {name}' for name in add_missing_columns()]
+    fixed = repair_post_flags()
+    if fixed:
+        notes.append(f'补回 {fixed} 个楼层的 PO 标记')
     with SessionLocal() as db:
         create_fts_table(db)
-    return added
+    return notes

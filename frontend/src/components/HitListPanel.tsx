@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Post } from '../api/types';
 import { PostView } from './PostView';
+import { NewTabLink } from './postLink';
 import { Pagination } from './Pagination';
 
 /**
@@ -26,6 +27,8 @@ export function HitListPanel({
   actions,
   emptyHint,
   searchHint,
+  hideImage,
+  collapse,
 }: {
   keyword: string;
   onKeyword: (value: string) => void;
@@ -45,6 +48,10 @@ export function HitListPanel({
   actions: (post: Post, index: number) => ReactNode;
   emptyHint: string;
   searchHint: string;
+  /** 全文检索用：命中列表不放图 */
+  hideImage?: boolean;
+  /** 全文检索用：每层正文固定高度，超出可展开 */
+  collapse?: boolean;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   /** 视口顶部附近的那一条，用来显示「第几条」并支持 ↑/↓ 跳条 */
@@ -157,7 +164,14 @@ export function HitListPanel({
               data-peek-index={index}
               highlight={highlight}
               onQuote={onQuote}
-              actions={actions(post, index)}
+              hideImage={hideImage}
+              collapse={collapse}
+              actions={
+                <>
+                  {actions(post, index)}
+                  <NewTabLink threadId={post.threadId} postId={post.id} />
+                </>
+              }
             />
           ))
         )}

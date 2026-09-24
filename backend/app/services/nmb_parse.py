@@ -1,6 +1,9 @@
 """X岛串的抓取与解析。
 
 约定：跳过板块公告楼（No.9999999）；串首 pageNum=0 且 isPo=True，岛上第 N 页的回复 pageNum=N。
+
+PO 的判定见 `build_thread`：岛上只有一部分楼层带 `(PO主)`，同一串里显示 ID 与串首相同的
+楼层就是楼主本人，所以按 ID 收口，不依赖那个标记。
 """
 
 from __future__ import annotations
@@ -374,6 +377,14 @@ def build_thread(thread_id: int, pages: list[tuple[int, str]], tags: list[dict] 
             continue
         seen.add(post['id'])
         unique.append(post)
+
+    # 岛上的 (PO主) 标记不是每层都带，只认它会漏掉大量楼主楼层。
+    # 一串里的显示 ID 是认人的：与串首 ID 相同就是楼主。
+    op_cookie = op['cookie']
+    if op_cookie:
+        for post in unique:
+            if post['cookie'] == op_cookie:
+                post['isPo'] = True
 
     return {
         'thread': {

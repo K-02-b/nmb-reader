@@ -407,6 +407,26 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* 全文检索命中：正文只占固定的 6 行，超出的部分折起来，展开按钮在下面 */
+.post-body.is-collapsed {
+  position: relative;
+  max-height: calc(6 * var(--line-height-base) * 1em);
+  overflow: hidden;
+}
+.post-body.is-collapsed::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1.8em;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
+}
+.post-toggle {
+  display: block;
+  margin-top: 6px;
+}
 .post-body .quote {
   color: var(--accent);
   font-family: var(--font-mono);

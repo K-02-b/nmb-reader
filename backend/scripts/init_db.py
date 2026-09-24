@@ -25,10 +25,10 @@ def main() -> int:
     if args.reset:
         init_db()
         Base.metadata.drop_all(bind=engine)
-    added = init_db()
+    notes = init_db()
     print(f'✓ 建表完成：{settings.db_url}')
-    if added:
-        print(f'✓ 已补上新增列：{", ".join(added)}')
+    for note in notes:
+        print(f'✓ {note}')
 
     with SessionLocal() as db:
         created = auth_service.bootstrap(db)

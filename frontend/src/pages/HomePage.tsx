@@ -81,8 +81,8 @@ export function HomePage() {
   } = useApp();
   const navigate = useNavigate();
   const { active: tool, toggle: toggleTool, close: closeTool } = useDock<DockKey>();
-  /** 全文检索里点开的引用：跨串，所以要连串号一起记住 */
-  const [quote, setQuote] = useState<{ threadId: number; postId: number } | null>(null);
+  /** 全文检索里点开的引用：可能跨串，串号能查到就记上，查不到（不在这一页命中里）就留空 */
+  const [quote, setQuote] = useState<{ threadId: number | null; postId: number } | null>(null);
   // 支持 ?board=xxx（阅读页点板块会带过来）
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState<ThreadQuery>({
@@ -187,20 +187,19 @@ export function HomePage() {
     navigate(`/admin?tab=threads&thread=${threadId}`);
   };
 
-  // 打开书签面板时拉全量书签（跨串，按添加时间从晚到早）
+  // 进页面就拉全量楼层书签（跨串）：竖栏上的数量要一开始就对，不能等点开面板才算
   useEffect(() => {
-    if (tool !== 'marks' || postBookmarks.length > 0) return;
     let alive = true;
     setBookmarksLoading(true);
     api
       .fetchPostBookmarks()
       .then((list) => alive && setPostBookmarks(list))
-      .catch(() => undefined)
+      .catch(() => alive && setPostBookmarks([]))
       .finally(() => alive && setBookmarksLoading(false));
     return () => {
       alive = false;
     };
-  }, [postBookmarks.length, tool]);
+  }, [session?.username]);
 
   const updateBookmarkFilter = (next: BookmarkFilter) => {
     setBookmarkFilter(next);
@@ -335,11 +334,14 @@ export function HomePage() {
           pageSize={HIT_PAGE_SIZE}
           onPage={setFulltextPage}
           onQuote={(postId) => {
+            // 引用的目标通常不在这一页命中里，串号只能当提示用；弹框自己按楼号去取
             const hit = fulltextHits.find((post) => post.id === postId);
-            if (hit) setQuote({ threadId: hit.threadId, postId });
+            setQuote({ threadId: hit?.threadId ?? null, postId });
           }}
           emptyHint="输入关键词后回车，命中在这里看；只覆盖已下载的串。"
           searchHint=""
+          hideImage
+          collapse
           actions={(post) => (
             <>
               <button className="link-btn" onClick={() => revealThread(post.threadId)}>
@@ -434,10 +436,10 @@ export function HomePage() {
         </div>
         {quote && (
           <QuotePopup
-            key={`${quote.threadId}-${quote.postId}`}
+            key={`${quote.threadId ?? 'thread'}-${quote.postId}`}
             rootPostId={quote.postId}
             threadId={quote.threadId}
-            onGoToPost={(postId) => navigate(`/t/${quote.threadId}?post=${postId}`)}
+            onGoToPost={(postId, targetThread) => navigate(`/t/${targetThread}?post=${postId}`)}
             onClose={() => setQuote(null)}
           />
         )}

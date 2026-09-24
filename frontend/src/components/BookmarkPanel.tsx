@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { PostBookmark, TagVocabulary } from '../api/types';
 import { filterBookmarks, type BookmarkFilter } from './bookmarkFilter';
+import { NewTabLink } from './postLink';
 
 /** 标签下拉里的分组顺序，与串信息页一致 */
 const TAG_GROUPS: Array<[keyof TagVocabulary, string]> = [
@@ -168,6 +169,7 @@ export function BookmarkPanel({
                     >
                       {editingThis ? '保存' : '编辑'}
                     </button>
+                    <NewTabLink threadId={item.threadId} postId={item.postId} />
                   </div>
                 </li>
               );
