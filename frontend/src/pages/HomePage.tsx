@@ -113,8 +113,8 @@ export function HomePage() {
   const [bookmarkFilter, setBookmarkFilter] = useState<BookmarkFilter>(
     () => loadBookmarkFilter('directory', session?.username) ?? defaultBookmarkFilter('directory'),
   );
-  // 标签候选来自全局词汇表
-  const { vocab, refresh: refreshVocab } = useTagVocab();
+  // 标签候选来自全局词汇表；词汇表由 TagVocabProvider 在登录后统一拉一次，这里不再重复请求
+  const { vocab } = useTagVocab();
   const canManage = Boolean(session?.permissions.includes('thread.edit'));
   const canDownload = Boolean(session?.permissions.includes('thread.download'));
 
@@ -138,10 +138,6 @@ export function HomePage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    void refreshVocab();
-  }, [refreshVocab]);
 
   // 最近三次检索词与串内检索共用一份（按用户名存在浏览器本地）
   useEffect(() => {
