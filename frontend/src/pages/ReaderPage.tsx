@@ -539,7 +539,7 @@ export function ReaderPage() {
           pageSize={PEEK_PAGE_SIZE}
           onPage={(next) => void goToHitPage(next)}
           onQuote={openQuote}
-          emptyHint="输入关键词后回车，命中在这里看，正文不动。"
+          emptyHint="输入关键词后回车，命中在这里看，正文不动；空格分词，英文双引号内完全匹配。"
           searchHint=""
           actions={(post, index) => (
             <>

@@ -55,6 +55,10 @@ interface Session { username: string; group: 'admin' | 'editor' | 'user'; permis
 | GET | `/api/search/fulltext?keyword=&limit=` | → `Array<{thread, post}>`，只覆盖已下载的串 |
 | GET | `/api/search/status` | → `{backend, fts5, indexedPosts, db}` |
 
+`keyword` 的写法（全文检索、串内检索、目录筛选共用一套规则）：空白分词，词与词之间是 AND
+（各词都要出现）；英文双引号内的整段算一个词、要求完全匹配（`"B事 量化"` 与 `B事 量化` 结果不同）；
+落单的 `"` 当普通字符，最多 8 个词。全文检索里短于 3 字的词走 LIKE，其余走 FTS5。
+
 ## 下载队列（需 `thread.download`）
 
 | 方法 | 路径 | 说明 |

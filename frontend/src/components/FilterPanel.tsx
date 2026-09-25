@@ -26,6 +26,7 @@ export function FilterPanel({
           value={query.keyword ?? ''}
           onChange={(e) => onChange({ keyword: e.target.value })}
           placeholder="标题、摘要或标签里的片段"
+          title="空格分词，各词都要出现；英文双引号内视为一个整体，要求完全匹配"
         />
       </div>
 

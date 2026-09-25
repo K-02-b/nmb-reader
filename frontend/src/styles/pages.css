@@ -145,6 +145,13 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* 最近检索词：词与词之间留空档，别贴成一坨 */
+.recent-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* 面板里的筛选行（书签用） */
 .tools-filters {
   display: flex;

@@ -1,4 +1,8 @@
-"""全文检索：可插拔后端（FTS5 / Manticore，退路为 LIKE）。只检索已下载的串。"""
+"""全文检索：可插拔后端（FTS5 / Manticore，退路为 LIKE）。只检索已下载的串。
+
+检索词按 `query_terms` 切分：空白分隔（词与词之间是 AND），英文双引号内的整段
+算一个词、要求完全匹配。三个后端都用同一套切词，结果才一致。
+"""
 
 from __future__ import annotations
 
@@ -15,6 +19,9 @@ from ..settings import settings
 
 FTS_TABLE = 'post_fts'
 MIN_TRIGRAM = 3
+MAX_TERMS = 8
+# `"整段"` 优先，剩下的按空白切；落单的引号当普通字符
+TERM_PATTERN = re.compile(r'"([^"]*)"|(\S+)')
 
 
 @dataclass
@@ -33,10 +40,23 @@ class SearchBackend(Protocol):
     def drop_thread(self, db: Session, thread_id: int) -> None: ...
 
 
-def _fts_query(keyword: str) -> str:
-    """把用户输入变成 FTS5 短语查询。"""
-    escaped = keyword.strip().replace('"', '""')
-    return f'"{escaped}"'
+def query_terms(keyword: str) -> list[str]:
+    """切检索词：空白分词，英文双引号内的整段算一个词。
+
+    `B事 量化` → ['B事', '量化']（两词都要出现）；`"B事 量化"` → ['B事 量化']（整段完全匹配）。
+    """
+    terms: list[str] = []
+    for quoted, bare in TERM_PATTERN.findall(keyword):
+        term = (quoted or bare).strip().strip('"')
+        if term and term not in terms:
+            terms.append(term)
+    return terms[:MAX_TERMS]
+
+
+def _fts_query(terms: list[str]) -> str:
+    """把词列表变成 FTS5 查询：每个词一个短语，词与词之间 AND（trigram 下短语就是子串）。"""
+    escaped = (term.replace('"', '""') for term in terms)
+    return ' AND '.join(f'"{term}"' for term in escaped)
 
 
 class LikeBackend:
@@ -45,12 +65,12 @@ class LikeBackend:
     name = 'like'
 
     def search(self, db: Session, keyword: str, limit: int = 50) -> list[Hit]:
-        kw = keyword.strip()
-        if not kw:
+        terms = query_terms(keyword)
+        if not terms:
             return []
         rows = db.execute(
             select(PostBody.thread_id, PostBody.id)
-            .where(PostBody.content.like(f'%{kw}%'))
+            .where(*(PostBody.content.like(f'%{term}%') for term in terms))
             .order_by(PostBody.id.desc())
             .limit(limit)
         ).all()
@@ -77,14 +97,15 @@ class Fts5Backend:
             return False
 
     def search(self, db: Session, keyword: str, limit: int = 50) -> list[Hit]:
-        kw = keyword.strip()
-        if not kw:
+        terms = query_terms(keyword)
+        if not terms:
             return []
-        if len(kw) < MIN_TRIGRAM or not self.available(db):
-            return LikeBackend().search(db, kw, limit)
+        # trigram 分词器认不了短于 3 字的词，只要有一个这种词就整句走 LIKE
+        if any(len(term) < MIN_TRIGRAM for term in terms) or not self.available(db):
+            return LikeBackend().search(db, keyword, limit)
         rows = db.execute(
             text(f'SELECT thread_id, post_id FROM {FTS_TABLE} WHERE content MATCH :q ORDER BY rank LIMIT :limit'),
-            {'q': _fts_query(kw), 'limit': limit},
+            {'q': _fts_query(terms), 'limit': limit},
         ).all()
         return [Hit(thread_id=int(t), post_id=int(p)) for t, p in rows]
 
@@ -165,15 +186,19 @@ class ManticoreBackend:
 
     # ---- 检索 ----
     def search(self, db: Session, keyword: str, limit: int = 50) -> list[Hit]:
-        kw = keyword.strip()
-        if not kw:
+        terms = query_terms(keyword)
+        if not terms:
             return []
+        # 每个词都要求连续命中（match_phrase），词与词之间是 AND
+        query: dict = {'match_phrase': {'content': terms[0]}}
+        if len(terms) > 1:
+            query = {'bool': {'must': [{'match_phrase': {'content': term}} for term in terms]}}
         try:
             data = self._post(
                 '/search',
                 json_body={
                     'index': self.index,
-                    'query': {'match_phrase': {'content': kw}},
+                    'query': query,
                     'limit': limit,
                     '_source': ['thread_id', 'post_id'],
                 },
@@ -181,8 +206,8 @@ class ManticoreBackend:
         except Exception as exc:  # noqa: BLE001 - Manticore 挂了就退回本地实现，别让阅读页整体不可用
             from ..services.auth import log
 
-            log(db, 'warn', 'search', f'Manticore 查询失败，回退 LIKE：{kw[:40]}（{exc}）')
-            return LikeBackend().search(db, kw, limit)
+            log(db, 'warn', 'search', f'Manticore 查询失败，回退 LIKE：{keyword.strip()[:40]}（{exc}）')
+            return LikeBackend().search(db, keyword, limit)
 
         hits: list[Hit] = []
         for row in data.get('hits', {}).get('hits', []):
@@ -309,5 +334,6 @@ __all__ = [
     'get_backend',
     'highlight',
     'index_thread',
+    'query_terms',
     'rebuild_index',
 ]

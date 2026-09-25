@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { queryTerms } from './query';
 
 /**
  * 岛上的引用写法（实测就这几种）：`>>50189071`、`>>No.50189071`，
@@ -42,20 +43,28 @@ export function renderPostBody(
 }
 
 export function highlightText(text: string, keyword?: string): ReactNode {
-  if (!keyword) return text;
-  const kw = keyword.trim();
-  if (!kw) return text;
+  const terms = keyword ? queryTerms(keyword) : [];
+  if (terms.length === 0) return text;
   const lower = text.toLowerCase();
-  const target = kw.toLowerCase();
+  const lowered = terms.map((term) => term.toLowerCase());
   const nodes: ReactNode[] = [];
   let cursor = 0;
-  let found = lower.indexOf(target);
   let key = 0;
-  while (found >= 0) {
+  for (;;) {
+    // 每次挑最靠前的那个词；同位置取更长的，免得短词盖住长词
+    let found = -1;
+    let length = 0;
+    lowered.forEach((term) => {
+      const at = lower.indexOf(term, cursor);
+      if (at >= 0 && (found < 0 || at < found || (at === found && term.length > length))) {
+        found = at;
+        length = term.length;
+      }
+    });
+    if (found < 0) break;
     if (found > cursor) nodes.push(text.slice(cursor, found));
-    nodes.push(<mark key={`m${key++}`}>{text.slice(found, found + kw.length)}</mark>);
-    cursor = found + kw.length;
-    found = lower.indexOf(target, cursor);
+    nodes.push(<mark key={`m${key++}`}>{text.slice(found, found + length)}</mark>);
+    cursor = found + length;
   }
   if (cursor < text.length) nodes.push(text.slice(cursor));
   return nodes;

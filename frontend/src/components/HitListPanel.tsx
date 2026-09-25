@@ -9,6 +9,7 @@ import { Pagination } from './Pagination';
  *
  * 输入框、最近三次记忆、命中列表的排版、↑/↓ 跳条、页码都在这儿；
  * 每条下面放什么操作由调用方给，翻页也是调用方决定（服务端翻页或本地切片）。
+ * 检索词规则见 `query.ts`：空格分词，英文双引号内的整段完全匹配。
  */
 export function HitListPanel({
   keyword,
@@ -122,6 +123,7 @@ export function HitListPanel({
         <input
           className="input"
           placeholder="内容或串号"
+          title="空格分词，各词都要出现；英文双引号内视为一个整体，要求完全匹配"
           value={keyword}
           onChange={(e) => onKeyword(e.target.value)}
           onKeyDown={(e) => {

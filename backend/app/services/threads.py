@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..models import Post, PostBody, PostBookmark, TagRegistry, Thread, ThreadTag
 from ..schemas import PostBookmarkOut, PostOut, TagOut, TagVocabulary, ThreadOut
 from .auth import now_ts
+from .search import query_terms
 
 # 排序字段 + 是否倒序；串号是同值时的次级排序，保证分页与「第几条」一致
 SORT_FIELDS: dict[str, tuple[Any, bool]] = {
@@ -102,8 +103,8 @@ def build_thread_query(db: Session, query: ThreadQuery) -> Select:
         stmt = stmt.where(func.cast(Thread.thread_id, String).like(f'%{query.thread_id}%'))
     if query.cookie:
         stmt = stmt.where(Thread.cookie == query.cookie)
-    if query.keyword:
-        like = f'%{query.keyword}%'
+    for term in query_terms(query.keyword or ''):
+        like = f'%{term}%'
         stmt = stmt.where(
             or_(
                 PostBody.title.like(like),
@@ -211,19 +212,20 @@ def list_posts(
 ) -> tuple[list[PostOut], int, int]:
     """返回 (items, total, page_count)；分页语义见 docs/contract.md。"""
     conditions = [Post.thread_id == thread_id]
-    if keyword:
-        like = f'%{keyword}%'
-        kw_conditions = [PostBody.thread_id == thread_id, PostBody.content.like(like)]
-        if keyword.isdigit():
-            kw_conditions.append(PostBody.id == int(keyword))
-        conditions.append(Post.id.in_(select(PostBody.id).where(*kw_conditions)))
+    terms = query_terms(keyword or '')
+    if terms:
+        # 与全文检索同一套切词：每个词都要出现；纯串号另外按楼号命中
+        matched: Any = and_(*(PostBody.content.like(f'%{term}%') for term in terms))
+        if keyword and keyword.isdigit():
+            matched = or_(matched, PostBody.id == int(keyword))
+        conditions.append(Post.id.in_(select(PostBody.id).where(PostBody.thread_id == thread_id, matched)))
     if po_only:
         conditions.append(Post.is_po.is_(True))
 
     total = db.scalar(select(func.count()).select_from(Post).where(*conditions)) or 0
 
     # 只看 Po 和检索一样是「过滤后的列表」，按每页条数分页，不再按岛页码
-    filtered = bool(keyword) or po_only
+    filtered = bool(terms) or po_only
     page_conditions = list(conditions)
     if paging_mode == 'island' and not filtered:
         page_conditions.append(or_(Post.page_num == page, and_(page == 1, Post.page_num == 0)))

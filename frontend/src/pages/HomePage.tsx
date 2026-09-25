@@ -338,7 +338,7 @@ export function HomePage() {
             const hit = fulltextHits.find((post) => post.id === postId);
             setQuote({ threadId: hit?.threadId ?? null, postId });
           }}
-          emptyHint="输入关键词后回车，命中在这里看；只覆盖已下载的串。"
+          emptyHint="输入关键词后回车，命中在这里看；空格分词，英文双引号内完全匹配。只覆盖已下载的串。"
           searchHint=""
           hideImage
           collapse
