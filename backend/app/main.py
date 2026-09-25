@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import SessionLocal, init_db
 from .errors import install_error_handlers, not_found
+from .gzip import GzipMiddleware
 from .routers import admin as admin_router
 from .routers import assets as assets_router
 from .routers import auth as auth_router
@@ -60,6 +61,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     install_error_handlers(app)
+
+    # 该压的压（JSON / 文本 / JS / CSS / SVG），图片与导出原样走，理由见 app/gzip.py
+    app.add_middleware(GzipMiddleware)
 
     if settings.cors_origins:
         app.add_middleware(
