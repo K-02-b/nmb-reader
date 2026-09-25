@@ -87,7 +87,7 @@ export const api = {
     ),
   quotePost: (postId: number) => request<Post>(`/api/posts/${postId}`),
   fullText: (keyword: string, limit = 200) =>
-    request<Array<{ thread: Thread; post: Post }>>(
+    request<{ hits: Post[]; limit: number; truncated: boolean }>(
       `/api/search/fulltext?keyword=${encodeURIComponent(keyword)}&limit=${limit}`,
     ),
   updateThreadTags: (threadId: number, tags: Tag[]) =>
@@ -116,11 +116,13 @@ export const api = {
   },
 
   // 下载队列
-  fetchTasks: (params: { limit?: number; since?: number; status?: string } = {}) => {
+  fetchTasks: (params: { limit?: number; since?: number; status?: string; withAhead?: boolean } = {}) => {
     const query = new URLSearchParams();
     if (params.limit) query.set('limit', String(params.limit));
     if (params.since) query.set('since', String(params.since));
     if (params.status) query.set('status', params.status);
+    // 排队位置要服务端一条一个 COUNT：只有管理页要，全局轮询不传
+    if (params.withAhead) query.set('withAhead', 'true');
     const suffix = query.toString();
     return request<DownloadTask[]>(`/api/downloads${suffix ? `?${suffix}` : ''}`);
   },

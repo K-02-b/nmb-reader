@@ -36,7 +36,7 @@ class SubmitIn(CamelModel):
         return value
 
 
-def task_out(db: Session, task: DownloadTask) -> DownloadTaskOut:
+def task_out(db: Session, task: DownloadTask, with_ahead: bool = True) -> DownloadTaskOut:
     return DownloadTaskOut(
         task_id=task.task_id,
         kind=task.kind,
@@ -51,7 +51,8 @@ def task_out(db: Session, task: DownloadTask) -> DownloadTaskOut:
         total_pages=task.total_pages,
         written=task.written,
         message=task.message,
-        ahead=queue_service.ahead_of(db, task),
+        # 排队位置要一条一个 COUNT；只有管理页要，全局轮询（limit=20、几秒一次）不算
+        ahead=queue_service.ahead_of(db, task) if with_ahead else 0,
     )
 
 
@@ -62,10 +63,13 @@ def list_downloads(
     status_kind: str | None = Query(
         None, alias='status', pattern='^(active|done|failed)$', description='按状态档筛选：进行中 / 已完成 / 失败'
     ),
+    with_ahead: bool = Query(False, alias='withAhead', description='是否算排队位置（管理页用；默认不算）'),
     db: Session = Depends(get_db),
     _user: AppUser = Depends(require_user),
 ) -> list[DownloadTaskOut]:
-    return [task_out(db, task) for task in queue_service.list_tasks(db, limit, since, status_kind)]
+    return [
+        task_out(db, task, with_ahead=with_ahead) for task in queue_service.list_tasks(db, limit, since, status_kind)
+    ]
 
 
 @router.post('', response_model=DownloadTaskOut, summary='提交下载申请')
@@ -110,7 +114,8 @@ async def stream(request: Request, _user: AppUser = Depends(require_user)) -> St
                 break
             with SessionLocal() as db:
                 tasks = queue_service.list_tasks(db, 100)
-                payload = [task_out(db, task).model_dump(by_alias=True) for task in tasks]
+                # 每秒推一次，不含排队位置（要一条一个 COUNT）
+                payload = [task_out(db, task, with_ahead=False).model_dump(by_alias=True) for task in tasks]
             snapshot = {item['taskId']: item['status'] for item in payload}
             if snapshot != last:
                 last = snapshot

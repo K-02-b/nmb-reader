@@ -90,25 +90,29 @@ def _tags_by_thread(db: Session, thread_ids: list[int]) -> dict[int, list[TagOut
     return result
 
 
-def build_thread_query(db: Session, query: ThreadQuery) -> Select:
-    op_title = func.substr(PostBody.content, 1, 200)
-    stmt = select(Thread, PostBody, op_title).join(
-        PostBody, and_(PostBody.thread_id == Thread.thread_id, PostBody.id == Thread.thread_id)
-    )
+def thread_conditions(query: ThreadQuery) -> list[Any]:
+    """目录筛选条件，全部落在 `thread` 表上（关键词/标签走 IN 子查询）。
 
+    这样分页和计数都不必 join `post_body`——深分页时那个 join 会把 198 万行的正文表扫一遍。
+    """
+    conditions: list[Any] = []
     if query.board:
-        stmt = stmt.where(Thread.board.like(f'%{query.board}%'))
+        conditions.append(Thread.board.like(f'%{query.board}%'))
     if query.thread_id:
         # 串号很长，按片段模糊匹配
-        stmt = stmt.where(func.cast(Thread.thread_id, String).like(f'%{query.thread_id}%'))
+        conditions.append(func.cast(Thread.thread_id, String).like(f'%{query.thread_id}%'))
     if query.cookie:
-        stmt = stmt.where(Thread.cookie == query.cookie)
+        conditions.append(Thread.cookie == query.cookie)
     for term in query_terms(query.keyword or ''):
         like = f'%{term}%'
-        stmt = stmt.where(
+        conditions.append(
             or_(
-                PostBody.title.like(like),
-                PostBody.content.like(like),
+                Thread.thread_id.in_(
+                    select(PostBody.thread_id).where(
+                        PostBody.id == PostBody.thread_id,
+                        or_(PostBody.title.like(like), PostBody.content.like(like)),
+                    )
+                ),
                 Thread.thread_id.in_(
                     select(ThreadTag.thread_id)
                     .join(TagRegistry, TagRegistry.tag_id == ThreadTag.tag_id)
@@ -118,7 +122,7 @@ def build_thread_query(db: Session, query: ThreadQuery) -> Select:
         )
     for tag_type, value in (('genre', query.genre), ('series', query.series), ('status', query.status)):
         if value:
-            stmt = stmt.where(
+            conditions.append(
                 Thread.thread_id.in_(
                     select(ThreadTag.thread_id)
                     .join(TagRegistry, TagRegistry.tag_id == ThreadTag.tag_id)
@@ -126,7 +130,7 @@ def build_thread_query(db: Session, query: ThreadQuery) -> Select:
                 )
             )
     for tag_name in query.tags or []:
-        stmt = stmt.where(
+        conditions.append(
             Thread.thread_id.in_(
                 select(ThreadTag.thread_id)
                 .join(TagRegistry, TagRegistry.tag_id == ThreadTag.tag_id)
@@ -137,19 +141,45 @@ def build_thread_query(db: Session, query: ThreadQuery) -> Select:
         from ..models import Bookmark
 
         if query.user_id is None:
-            stmt = stmt.where(False)
+            conditions.append(False)
         else:
-            stmt = stmt.where(Thread.thread_id.in_(select(Bookmark.thread_id).where(Bookmark.user_id == query.user_id)))
+            conditions.append(Thread.thread_id.in_(select(Bookmark.thread_id).where(Bookmark.user_id == query.user_id)))
+    return conditions
+
+
+def build_thread_query(query: ThreadQuery) -> Select:
+    """目录分页查询：只查 `thread` 表，页内串首正文由 `_op_bodies()` 按 id 另取。"""
     column, desc = sort_clause(query.sort)
-    return stmt.order_by(column.desc() if desc else column.asc(), Thread.thread_id.desc())
+    return (
+        select(Thread)
+        .where(*thread_conditions(query))
+        .order_by(column.desc() if desc else column.asc(), Thread.thread_id.desc())
+    )
+
+
+def count_threads(db: Session, query: ThreadQuery) -> int:
+    return int(db.scalar(select(func.count()).select_from(Thread).where(*thread_conditions(query))) or 0)
+
+
+def _op_bodies(db: Session, thread_ids: list[int]) -> dict[int, PostBody]:
+    """取这一页的串首正文（走 post_body 主键，只碰这一页的条数）。"""
+    if not thread_ids:
+        return {}
+    rows = db.scalars(
+        select(PostBody).where(PostBody.thread_id.in_(thread_ids), PostBody.id == PostBody.thread_id)
+    ).all()
+    return {row.thread_id: row for row in rows}
 
 
 def list_threads(db: Session, query: ThreadQuery) -> tuple[list[ThreadOut], int]:
-    stmt = build_thread_query(db, query)
-    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    rows = db.execute(stmt.limit(query.page_size).offset((query.page - 1) * query.page_size)).all()
-    tag_map = _tags_by_thread(db, [thread.thread_id for thread, _body, _title in rows])
-    items = [thread_out(thread, body, tag_map.get(thread.thread_id, [])) for thread, body, _title in rows]
+    total = count_threads(db, query)
+    threads = db.scalars(
+        build_thread_query(query).limit(query.page_size).offset((query.page - 1) * query.page_size)
+    ).all()
+    ids = [thread.thread_id for thread in threads]
+    bodies = _op_bodies(db, ids)
+    tag_map = _tags_by_thread(db, ids)
+    items = [thread_out(thread, bodies.get(thread.thread_id), tag_map.get(thread.thread_id, [])) for thread in threads]
     return items, total
 
 
@@ -158,7 +188,7 @@ def thread_position(db: Session, query: ThreadQuery, thread_id: int) -> int | No
 
     目录页「在目录显示」用它算出该翻到第几页，不用把结果筛成一个串。
     """
-    row = db.execute(build_thread_query(db, query).where(Thread.thread_id == thread_id)).first()
+    row = db.execute(build_thread_query(query).where(Thread.thread_id == thread_id)).first()
     if row is None:
         return None
     column, desc = sort_clause(query.sort)
@@ -167,7 +197,7 @@ def thread_position(db: Session, query: ThreadQuery, thread_id: int) -> int | No
         column > target if desc else column < target,
         and_(column == target, Thread.thread_id > thread_id),
     )
-    stmt = build_thread_query(db, query).where(before)
+    stmt = build_thread_query(query).where(before)
     return int(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
 
 
@@ -257,6 +287,18 @@ def get_post(db: Session, post_id: int) -> PostOut | None:
     if row is None:
         return None
     return _post_out(*row)
+
+
+def get_posts(db: Session, post_ids: list[int]) -> dict[int, PostOut]:
+    """一次取多楼（全文检索命中列表用；一条一个查询的话 200 条就是 200 次往返）。"""
+    if not post_ids:
+        return {}
+    rows = db.execute(
+        select(Post, PostBody)
+        .join(PostBody, and_(PostBody.thread_id == Post.thread_id, PostBody.id == Post.id))
+        .where(Post.id.in_(post_ids))
+    ).all()
+    return {post.id: _post_out(post, body) for post, body in rows}
 
 
 def tag_vocabulary(db: Session) -> TagVocabulary:

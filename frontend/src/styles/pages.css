@@ -152,6 +152,12 @@
   gap: 6px;
 }
 
+/* 「命中被上限截断」这类提醒：面板里一行黄字 */
+.tools-warn {
+  padding: 0 14px 8px;
+  color: var(--warn);
+}
+
 /* 面板里的筛选行（书签用） */
 .tools-filters {
   display: flex;

@@ -52,8 +52,10 @@ interface Session { username: string; group: 'admin' | 'editor' | 'user'; permis
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/search/fulltext?keyword=&limit=` | → `Array<{thread, post}>`，只覆盖已下载的串 |
+| GET | `/api/search/fulltext?keyword=&limit=` | → `{hits: Post[], limit, truncated}`，只覆盖已下载的串；`truncated=true` 表示命中数超过 `limit`，界面必须提示被截断 |
 | GET | `/api/search/status` | → `{backend, fts5, indexedPosts, db}` |
+
+命中只带楼本身（`Post`，含 `threadId`）；早先每条还复制一份完整串首，前端从不读，已去掉。
 
 `keyword` 的写法（全文检索、串内检索、目录筛选共用一套规则）：空白分词，词与词之间是 AND
 （各词都要出现）；英文双引号内的整段算一个词、要求完全匹配（`"B事 量化"` 与 `B事 量化` 结果不同）；
@@ -63,7 +65,7 @@ interface Session { username: string; group: 'admin' | 'editor' | 'user'; permis
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/downloads?limit=&since=&status=` | → `DownloadTask[]`（含 `kind: download\|images`），所有登录用户可见全部任务；`since` 只返回该 Unix 秒之后提交的；`status` 取 `active`（进行中）/ `done`（已完成）/ `failed`（失败），状态归哪档由后端定义 |
+| GET | `/api/downloads?limit=&since=&status=&withAhead=` | → `DownloadTask[]`（含 `kind: download\|images`），所有登录用户可见全部任务；`since` 只返回该 Unix 秒之后提交的；`status` 取 `active`（进行中）/ `done`（已完成）/ `failed`（失败），状态归哪档由后端定义；`withAhead=true` 才算排队位置 `ahead`（管理页用；默认 0，避免轮询里一条一个 COUNT） |
 | POST | `/api/downloads` | body `{threadId, source: XD, title?}` → `DownloadTask`；`threadId` 接受数字或 `No.59775198` 这类写法；串号非法 `BAD_THREAD_ID`，来源非 XD 或已有在跑的任务 `BAD_SOURCE` / `409 TASK_EXISTS` |
 | POST | `/api/downloads/{taskId}/cancel` | → `DownloadTask`；排队中直接置 `cancelled`，下载中置 `cancelling` 由 worker 在页边界终止；已完成 `409 TASK_FINISHED` |
 | POST | `/api/downloads/{taskId}/retry` | → `DownloadTask`，回到 `queued` |

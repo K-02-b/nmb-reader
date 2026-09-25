@@ -273,6 +273,12 @@ def get_backend(db: Session | None = None) -> SearchBackend:
     return LikeBackend()
 
 
+def search_hits(db: Session, keyword: str, limit: int) -> tuple[list[Hit], bool]:
+    """返回 (命中, 是否被 limit 截断)：多取一条就知道后面还有没有，不必数总数。"""
+    hits = get_backend(db).search(db, keyword, limit + 1)
+    return hits[:limit], len(hits) > limit
+
+
 def create_fts_table(db: Session) -> None:
     """建 FTS5 虚拟表（create_all 管不到）。"""
     if not settings.db_url.startswith('sqlite'):
@@ -336,4 +342,5 @@ __all__ = [
     'index_thread',
     'query_terms',
     'rebuild_index',
+    'search_hits',
 ]

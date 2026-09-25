@@ -28,6 +28,8 @@ export function HitListPanel({
   actions,
   emptyHint,
   searchHint,
+  truncated,
+  limit,
   hideImage,
   collapse,
 }: {
@@ -49,6 +51,9 @@ export function HitListPanel({
   actions: (post: Post, index: number) => ReactNode;
   emptyHint: string;
   searchHint: string;
+  /** 命中数撞上了接口上限：列表上方要明说被截断了 */
+  truncated?: boolean;
+  limit?: number;
   /** 全文检索用：命中列表不放图 */
   hideImage?: boolean;
   /** 全文检索用：每层正文固定高度，超出可展开 */
@@ -146,6 +151,10 @@ export function HitListPanel({
             ))}
           </div>
         </div>
+      )}
+
+      {truncated && (
+        <p className="hint tools-warn">命中数超过上限，只显示前 {limit} 条；换个更具体的关键词能缩小范围。</p>
       )}
 
       {hitPages > 1 && (

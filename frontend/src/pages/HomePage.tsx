@@ -99,6 +99,9 @@ export function HomePage() {
   const [fulltextTotal, setFulltextTotal] = useState(0);
   const [fulltextPage, setFulltextPage] = useState(1);
   const [fulltextKeywordApplied, setFulltextKeywordApplied] = useState('');
+  /** 命中数撞上接口上限时为 true：界面要明说「被截断了」，不能当成全部结果 */
+  const [fulltextTruncated, setFulltextTruncated] = useState(false);
+  const [fulltextLimit, setFulltextLimit] = useState(200);
   /** 「在目录显示」要滚到的那一行 */
   const revealRef = useRef<number | null>(null);
   const [fulltextBusy, setFulltextBusy] = useState(false);
@@ -248,14 +251,20 @@ export function HomePage() {
     setFulltextBusy(true);
     try {
       const result = await api.fullText(keyword);
-      setFulltextHits(result.map((hit) => hit.post));
-      setFulltextTotal(result.length);
+      const hits = result.hits;
+      setFulltextHits(hits);
+      setFulltextTotal(hits.length);
       setFulltextPage(1);
       setFulltextKeywordApplied(keyword);
-      notify(
-        result.length === 0 ? `没有命中「${keyword}」的楼层` : `全文检索命中 ${result.length} 条（仅覆盖已下载的串）`,
-        result.length === 0 ? 'info' : 'ok',
-      );
+      setFulltextTruncated(result.truncated);
+      setFulltextLimit(result.limit);
+      if (hits.length === 0) {
+        notify(`没有命中「${keyword}」的楼层`, 'info');
+      } else if (result.truncated) {
+        notify(`命中超过 ${result.limit} 条，只显示前 ${result.limit} 条；换个更具体的关键词能缩小范围`, 'warn');
+      } else {
+        notify(`全文检索命中 ${hits.length} 条（仅覆盖已下载的串）`, 'ok');
+      }
     } finally {
       setFulltextBusy(false);
     }
@@ -340,6 +349,8 @@ export function HomePage() {
           }}
           emptyHint="输入关键词后回车，命中在这里看；空格分词，英文双引号内完全匹配。只覆盖已下载的串。"
           searchHint=""
+          truncated={fulltextTruncated}
+          limit={fulltextLimit}
           hideImage
           collapse
           actions={(post) => (

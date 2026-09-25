@@ -136,9 +136,15 @@ class LogOut(CamelModel):
     message: str
 
 
-class SearchHit(CamelModel):
-    thread: ThreadOut
-    post: PostOut
+class FulltextResult(CamelModel):
+    """全文检索结果。只带命中楼本身——每条再塞一份完整串首纯属浪费（前端从不读）。
+
+    `truncated` 表示命中数超过 `limit`，界面要明确告诉用户结果被截断了。
+    """
+
+    hits: list[PostOut]
+    limit: int
+    truncated: bool
 
 
 class UserSettingsOut(CamelModel):

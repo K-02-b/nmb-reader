@@ -117,7 +117,8 @@ export function AdminPage() {
 
   const taskSince = taskDays > 0 ? Math.floor(Date.now() / 1000) - taskDays * 86400 : undefined;
   const tasks = useIncrementalList<DownloadTask>({
-    fetchPage: (limit) => api.fetchTasks({ limit, since: taskSince, status: taskStatus || undefined }).catch(() => []),
+    fetchPage: (limit) =>
+      api.fetchTasks({ limit, since: taskSince, status: taskStatus || undefined, withAhead: true }).catch(() => []),
     resetKey: `${taskDays}|${taskStatus}`,
     pollMs: tab === 'tasks' ? 2000 : 0,
   });

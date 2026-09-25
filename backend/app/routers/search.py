@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..schemas import SearchHit, ThreadOut
+from ..schemas import FulltextResult
 from ..services import search as search_service
 from ..services import threads as thread_service
 from ..settings import settings
@@ -15,30 +15,20 @@ from ..settings import settings
 router = APIRouter(prefix='/api/search', tags=['search'])
 
 
-@router.get('/fulltext', response_model=list[SearchHit], summary='全文检索（只覆盖已下载的串）')
+@router.get('/fulltext', response_model=FulltextResult, summary='全文检索（只覆盖已下载的串）')
 def fulltext(
     keyword: str = Query(min_length=1, max_length=64),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-) -> list[SearchHit]:
+) -> FulltextResult:
     kw = search_service.clean_keyword(keyword)
-    hits = search_service.get_backend(db).search(db, kw, limit)
-
-    results: list[SearchHit] = []
-    seen_threads: dict[int, ThreadOut] = {}
-    for hit in hits:
-        post = thread_service.get_post(db, hit.post_id)
-        if post is None:
-            continue
-        thread = seen_threads.get(hit.thread_id)
-        if thread is None:
-            thread_out = thread_service.get_thread(db, hit.thread_id)
-            if thread_out is None:
-                continue
-            thread = thread_out
-            seen_threads[hit.thread_id] = thread
-        results.append(SearchHit(thread=thread, post=post))
-    return results
+    hits, truncated = search_service.search_hits(db, kw, limit)
+    posts = thread_service.get_posts(db, [hit.post_id for hit in hits])
+    return FulltextResult(
+        hits=[post for post in (posts.get(hit.post_id) for hit in hits) if post is not None],
+        limit=limit,
+        truncated=truncated,
+    )
 
 
 @router.get('/status', summary='检索后端状态')
