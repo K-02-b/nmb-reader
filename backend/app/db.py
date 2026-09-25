@@ -80,8 +80,8 @@ def add_missing_columns() -> list[str]:
 def repair_post_flags() -> int:
     """按 ID 重算派生字段 `is_po`，返回补回来的楼层数（幂等）。
 
-    岛上的 `(PO主)` 标记不是每层都带，老库据此写下来的 `is_po` 会漏掉大量楼主楼层；
-    同一串里显示 ID 与串首相同就是楼主，这条规则不需要重新抓串就能补。
+    同一串里显示 ID 与串首相同就是楼主。老库（早期版本或归档器写入的库）里 `is_po`
+    可能整片为 false，用这条规则纯 SQL 补回，不必重新抓串。
     先探一下有没有要改的：稳定状态下就省掉一次全表写。
     """
     from sqlalchemy import text

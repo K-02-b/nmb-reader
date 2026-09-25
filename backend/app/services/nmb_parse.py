@@ -2,8 +2,8 @@
 
 约定：跳过板块公告楼（No.9999999）；串首 pageNum=0 且 isPo=True，岛上第 N 页的回复 pageNum=N。
 
-PO 的判定见 `build_thread`：岛上只有一部分楼层带 `(PO主)`，同一串里显示 ID 与串首相同的
-楼层就是楼主本人，所以按 ID 收口，不依赖那个标记。
+PO 的判定见 `build_thread`：同一串里显示 ID 与串首相同的楼层就是楼主本人。
+信息行里的 `(PO主)` 只是展示标记，只作提示，判定以显示 ID 为准。
 """
 
 from __future__ import annotations
@@ -267,7 +267,8 @@ def parse_post_block(block: str, thread_id: int, page_num: int, is_op: bool) -> 
         title = None
     name = grab(r'h-threads-info-email">(.*?)</span>') or '无名氏'
     created_raw = grab(r'h-threads-info-createdat">(.*?)</span>') or ''
-    is_po = is_op or '(PO主)' in block
+    # (PO主) 只作提示：只看信息行（正文之前），免得正文里写上这三个字就被当成楼主
+    is_po = is_op or '(PO主)' in block.split('<div class="h-threads-content">', 1)[0]
 
     content = ''
     marker = block.find('<div class="h-threads-content">')
@@ -378,8 +379,8 @@ def build_thread(thread_id: int, pages: list[tuple[int, str]], tags: list[dict] 
         seen.add(post['id'])
         unique.append(post)
 
-    # 岛上的 (PO主) 标记不是每层都带，只认它会漏掉大量楼主楼层。
-    # 一串里的显示 ID 是认人的：与串首 ID 相同就是楼主。
+    # 一串里的显示 ID 是认人的：与串首 ID 相同就是楼主，以此收口。
+    # 信息行的 (PO主) 标记只作提示，不作为判定依据。
     op_cookie = op['cookie']
     if op_cookie:
         for post in unique:
