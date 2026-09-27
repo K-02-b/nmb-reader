@@ -121,9 +121,14 @@ make init-compose  # 首次初始化：建表 + 管理员 + 重建检索索引
 curl -s localhost:8080/api/health
 # 单机直跑 / 容器单机：db=sqlite search=fts5；容器形态 worker 是独立容器，所以是 false
 # {"ok":true,"db":"sqlite","search":"fts5","worker":true,"images":true}
-curl -s localhost:8080/api/threads | head -c 120     # 目录列表
-curl -s -G --data-urlencode 'keyword=大洛山' localhost:8080/api/search/fulltext | head -c 120
-curl -s localhost:8080/api/search/status
+
+# 内容接口（目录 / 检索 / 图片 / 导出）一律要求登录，匿名请求返回 401：
+# 先登录存下 Session Cookie，之后带着它请求。仍然公开的只有 /api/health 与 /api/auth/*
+curl -s -c /tmp/xdnmb.jar -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin"}' localhost:8080/api/auth/login
+curl -s -b /tmp/xdnmb.jar localhost:8080/api/threads | head -c 120     # 目录列表
+curl -s -b /tmp/xdnmb.jar -G --data-urlencode 'keyword=大洛山' localhost:8080/api/search/fulltext | head -c 120
+curl -s -b /tmp/xdnmb.jar localhost:8080/api/search/status
 # {"backend":"fts5","fts5":true,"indexedPosts":0,"db":"sqlite"}
 ```
 
