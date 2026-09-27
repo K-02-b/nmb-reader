@@ -7,12 +7,14 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..deps import require_user
 from ..schemas import FulltextResult
 from ..services import search as search_service
 from ..services import threads as thread_service
 from ..settings import settings
 
-router = APIRouter(prefix='/api/search', tags=['search'])
+# 整路由要求登录：检索结果就是正文，不允许匿名读取。
+router = APIRouter(prefix='/api/search', tags=['search'], dependencies=[Depends(require_user)])
 
 
 @router.get('/fulltext', response_model=FulltextResult, summary='全文检索（只覆盖已下载的串）')

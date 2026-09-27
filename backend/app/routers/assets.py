@@ -8,14 +8,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..deps import require_db_manage
+from ..deps import require_db_manage, require_user
 from ..errors import not_found
 from ..models import AppUser, PostBody
 from ..schemas import CamelModel
 from ..services import exporter, images, maintenance
 from ..services import threads as thread_service
 
-router = APIRouter(prefix='/api', tags=['assets'])
+# 整路由要求登录：图片代理与串导出都是内容接口，不允许匿名读取。
+router = APIRouter(prefix='/api', tags=['assets'], dependencies=[Depends(require_user)])
 
 
 # ---- 图片 ----

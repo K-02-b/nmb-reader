@@ -15,7 +15,10 @@ from ..schemas import CamelModel, Paged, PostBookmarkOut, PostOut, TagOut, TagVo
 from ..services import auth as auth_service
 from ..services import threads as service
 
-router = APIRouter(prefix='/api', tags=['threads'])
+# 整路由要求登录：目录、串详情、楼层、标签都是内容接口，不允许匿名读取。
+# 本文件里带 require_thread_edit / require_user 的写接口不受影响 ——
+# FastAPI 会缓存同一请求内的 require_user，不会重复查库。
+router = APIRouter(prefix='/api', tags=['threads'], dependencies=[Depends(require_user)])
 
 
 class BookmarkTitleIn(CamelModel):
