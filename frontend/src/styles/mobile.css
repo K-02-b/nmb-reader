@@ -1,0 +1,527 @@
+/* 手机端（/m/...）骨架与专属组件。桌面端样式一律不改，这里只新增 .m-* 与手机端作用域内的覆盖。 */
+
+.m-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  /* 顶栏实际高度：楼层跳转的 scroll-margin 与引用弹框对齐都用它 */
+  --header-h: 52px;
+}
+
+/* ---- 顶栏与内容容器 ---- */
+
+.m-header-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: var(--header-h);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.m-header-user {
+  color: var(--text-faint);
+  font-size: 0.8em;
+  max-width: 30vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-container {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  /* 底部给标签栏留位：标签栏是 sticky，但内容末尾仍会被它压住一截 */
+  padding: 12px 12px calc(76px + env(safe-area-inset-bottom, 0px));
+}
+.m-container-bare {
+  max-width: none;
+  padding: 0;
+}
+
+/* 手机端卡片内边距收一点，窄屏能多放一行字 */
+.m-container .card {
+  padding: 12px;
+}
+.m-container .card + .card {
+  margin-top: 10px;
+}
+
+/* 输入框统一 16px：iOS 上小于 16px 会在聚焦时自动放大页面 */
+.m-shell .input,
+.m-shell .select,
+.m-shell .textarea {
+  font-size: 16px;
+  padding: 9px 10px;
+}
+
+/* ---- 底部标签栏 ---- */
+
+.m-tabbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.m-tab {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 2px 6px;
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  line-height: 1.2;
+  text-decoration: none;
+}
+.m-tab:hover {
+  text-decoration: none;
+}
+.m-tab.active {
+  color: var(--accent);
+}
+.m-tab span {
+  white-space: nowrap;
+}
+
+/* ---- 提示条：躲开底部标签栏 ---- */
+
+.m-toasts {
+  left: 12px;
+  right: 12px;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  max-width: none;
+}
+
+/*
+ * 层级：它们都挂在 body 上，桌面端的 z-index 是「引用弹框 50 / 导出弹框 55 / 提示 60」，
+ * 在手机端抽屉（70）会把这些盖住。用 <html data-ui="mobile"> 限定作用域，桌面端不受影响。
+ * 顺序：抽屉 70 < 引用与导出弹框 75 < 提示 90。
+ */
+:root[data-ui='mobile'] .quote-popup-backdrop,
+:root[data-ui='mobile'] .modal-backdrop {
+  z-index: 75;
+}
+:root[data-ui='mobile'] .toasts {
+  z-index: 90;
+}
+
+/* ---- 底部抽屉 ---- */
+
+.m-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+}
+.m-sheet {
+  width: 100%;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 16px 16px 0 0;
+  box-shadow: var(--shadow);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: m-sheet-up 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes m-sheet-up {
+  from {
+    transform: translateY(18px);
+    opacity: 0.6;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.m-sheet-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.m-sheet-head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+.m-sheet-grip {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.m-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+}
+/* 面板型内容（筛选 / 检索命中 / 书签）自带滚动区，这里只负责给它高度 */
+.m-sheet-body-bare {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.m-sheet-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* 抽屉里的操作菜单（串卡片的「⋯」） */
+.m-sheet-actions {
+  display: flex;
+  flex-direction: column;
+}
+.m-sheet-actions button {
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.m-sheet-actions button:last-child {
+  border-bottom: none;
+}
+.m-sheet-actions button.danger {
+  color: var(--danger);
+}
+.m-sheet-actions button:disabled {
+  opacity: 0.5;
+}
+
+/* ---- 通用移动端排版原语 ---- */
+
+.m-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.m-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.m-seg {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.m-seg::-webkit-scrollbar {
+  display: none;
+}
+.m-seg button {
+  flex: none;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.86em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.m-seg button.active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
+}
+.m-item {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.m-item:last-child {
+  border-bottom: none;
+}
+/* 管理页从别处跳进来时短暂高亮目标条（复用桌面端 pages.css 的 row-focus 关键帧） */
+.m-item.row-focus {
+  animation: row-focus 2.4s ease-out;
+}
+.m-item-title {
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.m-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76em;
+  color: var(--text-faint);
+}
+.m-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.m-actions .btn {
+  flex: none;
+}
+.m-scroll {
+  max-height: min(58dvh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+/* 整页面板（全文检索）：把视口剩下的高度给列表，内部 .tools-body 自己滚 */
+.m-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: calc(100dvh - var(--header-h) - 196px - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+
+/* ---- 目录页：筛选工具条 + 串卡片 ---- */
+
+.m-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.m-toolbar .input {
+  flex: 1;
+  min-width: 0;
+}
+.m-toolbar .select,
+.m-toolbar .btn {
+  flex: none;
+  width: auto;
+}
+
+.m-thread {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.m-thread:last-child {
+  border-bottom: none;
+}
+.m-thread-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: inherit;
+  text-decoration: none;
+}
+/* 标题区可点进阅读页，板块/标签这些按钮要放在链接外面，免得点标签被当成跳转 */
+.m-thread-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.m-thread-main:hover {
+  text-decoration: none;
+}
+.m-thread-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.m-thread-title {
+  font-weight: 600;
+  color: var(--text);
+  /* 标题最多两行，列表才不会被长标题撑散 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.m-thread-no {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 0.72em;
+  font-family: var(--font-mono);
+}
+.m-thread-excerpt {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.85em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.m-thread-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.m-thread-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.m-thread-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+.m-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+}
+.m-icon-btn:active {
+  background: var(--surface-2);
+}
+.m-icon-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.m-load-more {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.82em;
+}
+
+/* ---- 阅读页 ---- */
+
+.m-reader {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+.m-reader-head {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.m-reader-head-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--header-h);
+  padding: 4px 6px;
+}
+.m-reader-head-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.m-reader-body {
+  flex: 1;
+  padding-bottom: 8px;
+}
+.m-reader-card {
+  margin: 10px 10px 0;
+}
+
+/* 悬在内容之上的底部操作条：不在视口里就看不到，所以用 sticky 贴住屏底 */
+.m-reader-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+}
+.m-reader-bar .spacer {
+  flex: 1;
+}
+.m-reader-page {
+  flex: none;
+  min-width: 74px;
+  text-align: center;
+  font-size: 0.82em;
+  color: var(--text-dim);
+}
+.m-reader-page .mono {
+  color: var(--text);
+}
+.m-reader-btn {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 46px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+.m-reader-btn:disabled {
+  opacity: 0.35;
+}
+.m-reader-btn.active {
+  color: var(--accent);
+}
+.m-reader-btn .rail-badge {
+  position: absolute;
+  top: -2px;
+  right: 2px;
+}
+
+/* 阅读页返回原处：手机端放右下角，避开底部操作条 */
+.m-return-fab {
+  position: fixed;
+  right: 12px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  box-shadow: var(--shadow);
+}

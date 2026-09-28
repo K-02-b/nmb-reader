@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../state/AppContext';
 import { LayoutProvider, useLayout } from '../state/LayoutContext';
 import { groupText } from './format';
+import { toMobilePath, writeUiMode } from '../mobile/device';
 
 export function Layout() {
   return (
@@ -16,7 +17,7 @@ export function Layout() {
 function Shell() {
   const { session, logout, notices } = useApp();
   const { dockOpen } = useLayout();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
 
   // 换页面回到页首：否则从阅读页回目录会停在上一次的滚动位置
@@ -42,6 +43,16 @@ function Shell() {
                 <span>
                   {session.username} · {groupText(session.group)}
                 </span>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  title="切到手机版界面（会记住这次选择）"
+                  onClick={() => {
+                    writeUiMode('mobile');
+                    navigate(toMobilePath(pathname + search));
+                  }}
+                >
+                  手机版
+                </button>
                 <button
                   className="btn btn-sm btn-ghost"
                   onClick={() => {
