@@ -15,6 +15,8 @@ PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 COMPOSE ?= docker compose
 COMPOSE_LOCAL ?= docker compose -f compose.sqlite.yaml
+# 后端 dev 监听地址：默认只听本机；想用手机连局域网调手机端就 `make dev DEV_HOST=0.0.0.0`
+DEV_HOST ?= 127.0.0.1
 # PDF 导出的中文字体复用 nmb-exporter 的，按这个 commit 取
 NMB_EXPORTER_SHA ?= 76cd82660a00ebb8417257b5c4447f0a16e89282
 # 字体下载走镜像前缀（raw.githubusercontent.com 在国内不可达时会静默挂住）。
@@ -62,7 +64,7 @@ fetch-fonts: ## 下载 PDF 导出用的中文字体（15MB，复用 nmb-exporter
 # --------------------------------------------------------------------------- #
 dev: ## 建表并启动后端（SQLite + FTS5，托管前端构建产物）
 	cd $(BACKEND) && .venv/bin/python scripts/init_db.py
-	cd $(BACKEND) && .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8080 --reload
+	cd $(BACKEND) && .venv/bin/python -m uvicorn app.main:app --host $(DEV_HOST) --port 8080 --reload
 
 # --------------------------------------------------------------------------- #
 # 数据维护

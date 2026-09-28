@@ -90,6 +90,11 @@ make dev                     # 终端 1：后端 :8080（托管 frontend/dist）
 cd frontend && npm run dev   # 终端 2：前端 :5177，/api 反代到 8080，改前端即时生效
 ```
 
+前端 dev server 默认绑 `0.0.0.0`：手机连同一个局域网就能开 `http://<本机 IP>:5177/m` 调手机端，
+不用先构建产物（Vite 会打印 Network 地址）。只想本机访问就设环境变量 `VITE_HOST=127.0.0.1`；
+想让后端也监听局域网（比如手机直连后端托管的构建产物），用 `make dev DEV_HOST=0.0.0.0`——
+注意 Windows/WSL 或云主机上还需要防火墙放行对应端口。
+
 ### C. 容器化部署
 
 需要 Docker 24+ 与 Docker Compose v2。
