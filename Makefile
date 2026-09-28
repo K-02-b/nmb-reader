@@ -17,6 +17,13 @@ COMPOSE ?= docker compose
 COMPOSE_LOCAL ?= docker compose -f compose.sqlite.yaml
 # PDF 导出的中文字体复用 nmb-exporter 的，按这个 commit 取
 NMB_EXPORTER_SHA ?= 76cd82660a00ebb8417257b5c4447f0a16e89282
+# 字体下载走镜像前缀（raw.githubusercontent.com 在国内不可达时会静默挂住）。
+# 优先级：命令行/环境变量 > .env > 下面的默认值。make 不会自动读 .env，所以单独取一次，
+# 这样 compose 构建与 make fetch-fonts 用的是同一个 FONT_BASE_URL。
+FONT_BASE_URL ?= $(shell sed -n 's/^FONT_BASE_URL=//p' .env 2>/dev/null | tail -1)
+ifeq ($(strip $(FONT_BASE_URL)),)
+FONT_BASE_URL := https://gh-proxy.com/https://raw.githubusercontent.com
+endif
 
 .DEFAULT_GOAL := help
 
@@ -46,9 +53,9 @@ build: ## 构建前端产物（后端会直接托管 frontend/dist）
 
 fetch-fonts: ## 下载 PDF 导出用的中文字体（15MB，复用 nmb-exporter）
 	mkdir -p $(BACKEND)/app/assets/fonts
-	curl -fsSL -o $(BACKEND)/app/assets/fonts/GoNotoCJKCore.ttf \
-	  https://raw.githubusercontent.com/K-02-b/nmb-exporter/$(NMB_EXPORTER_SHA)/fonts/GoNotoCJKCore.ttf
-	@echo "✓ 已就位：$(BACKEND)/app/assets/fonts/GoNotoCJKCore.ttf"
+	curl -fsSL --connect-timeout 20 --max-time 600 -o $(BACKEND)/app/assets/fonts/GoNotoCJKCore.ttf \
+	  $(FONT_BASE_URL)/K-02-b/nmb-exporter/$(NMB_EXPORTER_SHA)/fonts/GoNotoCJKCore.ttf
+	@echo "✓ 已就位：$(BACKEND)/app/assets/fonts/GoNotoCJKCore.ttf（源：$(FONT_BASE_URL)）"
 
 # --------------------------------------------------------------------------- #
 # 单机直跑（零外部依赖：SQLite + FTS5）

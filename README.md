@@ -114,6 +114,9 @@ make init-compose  # 首次初始化：建表 + 管理员 + 重建检索索引
 
 > PDF 导出用的中文字体（15MB）体积大，**没有放进仓库**：`make setup` 会自动取回，
 > 容器镜像在构建时取回；单独补取用 `make fetch-fonts`。
+> 下载默认走 GitHub 代理（`raw.githubusercontent.com` 国内不可达时会静默挂住），
+> 换镜像/改回直连就设 `FONT_BASE_URL`：写进 `.env` 即可，`make fetch-fonts`
+> 与 compose 构建都读它（详见 `.env.example`）。
 
 ### 验证
 

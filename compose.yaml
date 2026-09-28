@@ -47,6 +47,8 @@ x-app-build: &app-build
     # Docker Hub 不可达时改 .env 指向国内加速器（见 .env.example）
     NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm-slim}
     PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+    # 导出用中文字体的下载前缀；raw.githubusercontent.com 国内不可达，默认走代理
+    FONT_BASE_URL: ${FONT_BASE_URL:-https://gh-proxy.com/https://raw.githubusercontent.com}
 
 x-app-depends: &app-depends
   db:
