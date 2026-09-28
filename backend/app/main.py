@@ -102,14 +102,30 @@ def create_app() -> FastAPI:
 
         @app.middleware('http')
         async def cache_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-            """带哈希的资源长缓存，其余一律先回源校验。
+            """按路径分档设置缓存策略。
 
-            否则浏览器会拿旧的 index.html 启发式缓存继续跑旧 JS：部署完了页面还是老样子。
+            /assets/      文件名带内容哈希              → 长缓存，immutable
+            /favicon.ico  根目录图标，没有内容哈希       → 短 TTL（边缘能缓存，换图后一天内生效）
+            /api/         动态、含会话数据              → 明确禁止缓存（no-store）
+            其余          SPA 回退，都是同一份 index.html → 必须回源校验，
+                          否则重新部署后浏览器拿旧 index.html 去请求已不存在的旧 JS。
             """
             response = await call_next(request)
-            if request.url.path.startswith('/assets/'):
+            path = request.url.path
+            if path.startswith('/assets/'):
+                # 文件名带内容哈希，可以长缓存
                 response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-            elif not request.url.path.startswith('/api/'):
+            elif path == '/favicon.ico':
+                # 没有内容哈希，所以给短 TTL：既能被浏览器和 CDN 边缘缓存，
+                # 换了图标最多一天也就生效了。（再往根目录放静态文件就照这条加分支）
+                response.headers['Cache-Control'] = 'public, max-age=86400'
+            elif path.startswith('/api/'):
+                # 接口一律显式禁止缓存。正文/检索/会话相关，不写的话响应没有任何缓存头，
+                # 浏览器和中间代理可能按启发式规则把 GET 响应缓存下来。
+                response.headers['Cache-Control'] = 'no-store'
+            else:
+                # SPA 回退：任意路径都返回同一份 index.html，必须回源校验，
+                # 否则重新部署后前端还拿着旧 index.html 去请求已经不存在的旧 JS（白屏）。
                 response.headers['Cache-Control'] = 'no-cache'
             return response
 
