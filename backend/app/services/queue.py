@@ -198,6 +198,26 @@ def ahead_of(db: Session, task: DownloadTask) -> int:
     )
 
 
+def ahead_positions(db: Session) -> dict[str, int]:
+    """一次算出所有排队任务的排队位置，避免每个任务一条 COUNT。
+
+    口径与 ahead_of 一致：前面有多少个 submitted_at 严格更小的排队任务
+    （也就是 claim_next 的取任务顺序）；同一秒提交的互不算前面有人。
+    列表与 SSE 每次推送都只要两条查询，而不是 1 + N 条。
+    """
+    rows = db.execute(
+        select(DownloadTask.task_id, DownloadTask.submitted_at)
+        .where(DownloadTask.status == 'queued')
+        .order_by(DownloadTask.submitted_at)
+    ).all()
+    positions: dict[str, int] = {}
+    base_of_ts: dict[int, int] = {}
+    for index, (task_id, submitted_at) in enumerate(rows):
+        base = base_of_ts.setdefault(submitted_at, index)
+        positions[task_id] = base
+    return positions
+
+
 # ---- worker 侧 ----
 def requeue_orphans(db: Session) -> int:
     """把上次 worker 异常退出时悬空的任务重新排队；只在 worker 启动时调用一次。"""

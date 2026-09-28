@@ -65,11 +65,11 @@ interface Session { username: string; group: 'admin' | 'editor' | 'user'; permis
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/downloads?limit=&since=&status=&withAhead=` | → `DownloadTask[]`（含 `kind: download\|images`），所有登录用户可见全部任务；`since` 只返回该 Unix 秒之后提交的；`status` 取 `active`（进行中）/ `done`（已完成）/ `failed`（失败），状态归哪档由后端定义；`withAhead=true` 才算排队位置 `ahead`（管理页用；默认 0，避免轮询里一条一个 COUNT） |
+| GET | `/api/downloads?limit=&since=&status=&withAhead=` | → `DownloadTask[]`（含 `kind: download\|images`），所有登录用户可见全部任务；`since` 只返回该 Unix 秒之后提交的；`status` 取 `active`（进行中）/ `done`（已完成）/ `failed`（失败），状态归哪档由后端定义；`withAhead=true` 才算排队位置 `ahead`（一次算好整批，不是每个任务一条 COUNT）。前端只在首屏兜底、手动刷新与推送断开时用它 |
 | POST | `/api/downloads` | body `{threadId, source: XD, title?}` → `DownloadTask`；`threadId` 接受数字或 `No.59775198` 这类写法；串号非法 `BAD_THREAD_ID`，来源非 XD 或已有在跑的任务 `BAD_SOURCE` / `409 TASK_EXISTS` |
 | POST | `/api/downloads/{taskId}/cancel` | → `DownloadTask`；排队中直接置 `cancelled`，下载中置 `cancelling` 由 worker 在页边界终止；已完成 `409 TASK_FINISHED` |
 | POST | `/api/downloads/{taskId}/retry` | → `DownloadTask`，回到 `queued` |
-| GET | `/api/downloads/stream` | SSE，事件名 `tasks`；每 1s 比对一次任务状态，有变化才推 |
+| GET | `/api/downloads/stream?limit=&since=&status=&withAhead=` | SSE，任务状态实时推送。连上先发一次全量 `event: tasks`（最新 `limit` 条，默认 200、上限 500），之后只推变化：`event: patch` 是新增或字段有变化的任务（`page` / `written` / `message` / `ahead` 都算变化），`event: remove` 是离开推送窗口的 `taskId[]`。没有变化时不发数据，空闲时每 15 个 tick（约 45 秒）发一个 `event: ping` 数据心跳 —— 用事件而不是注释行，前端才能靠「多久没收到任何东西」判断半开连接；重连间隔用 `retry: 3000` 告知浏览器。前端全局只连一条（管理页与「任务结束」提示共用），不再定时 fetch |
 
 串已存在且来源为 XD 时自动降级为**增量更新**（只补最后一页及之后），任务 `message` 会注明。
 
