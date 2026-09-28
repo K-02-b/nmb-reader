@@ -48,8 +48,12 @@ COPY backend/app ./backend/app
 COPY backend/scripts ./backend/scripts
 # 中文字体（约 15MB）：仓库里不带，构建时从 nmb-exporter 按 commit 取
 ARG NMB_EXPORTER_SHA
+# raw.githubusercontent.com 在国内不可达：实测构建会**静默挂住 1 小时以上**
+# （没有任何输出，看起来像卡死）。默认走 GitHub 代理，可用
+# --build-arg FONT_BASE_URL=... 覆盖；显式设 60s 超时，连不上就快速失败。
+ARG FONT_BASE_URL=https://gh-proxy.com/https://raw.githubusercontent.com
 RUN mkdir -p /app/backend/app/assets/fonts \
-    && python -c "import urllib.request; urllib.request.urlretrieve('https://raw.githubusercontent.com/K-02-b/nmb-exporter/${NMB_EXPORTER_SHA}/fonts/GoNotoCJKCore.ttf', '/app/backend/app/assets/fonts/GoNotoCJKCore.ttf')"
+    && python -c "import socket,urllib.request; socket.setdefaulttimeout(60); urllib.request.urlretrieve('${FONT_BASE_URL}/K-02-b/nmb-exporter/${NMB_EXPORTER_SHA}/fonts/GoNotoCJKCore.ttf', '/app/backend/app/assets/fonts/GoNotoCJKCore.ttf')"
 COPY deploy/docker ./deploy/docker
 # 前端构建产物：FastAPI 会自动托管 frontend/dist（见 app/main.py）
 COPY --from=web /web/dist ./frontend/dist
