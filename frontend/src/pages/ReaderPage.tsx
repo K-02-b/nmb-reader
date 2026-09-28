@@ -48,6 +48,7 @@ export function ReaderPage() {
     isCookieBlocked,
     isThreadBlocked,
     notify,
+    mergeTaskList,
     ready,
     run,
   } = useApp();
@@ -331,6 +332,8 @@ export function ReaderPage() {
     const task = await run(() => api.submitTask(threadId, 'XD', ''), undefined);
     setUpdating(false);
     if (!task) return;
+    // 立刻进本地任务列表，不用等下一次推送
+    mergeTaskList([task]);
     notify(`已提交更新 No.${threadId}（任务 ${task.taskId}）`, 'ok');
   };
 

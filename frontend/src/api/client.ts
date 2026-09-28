@@ -18,7 +18,31 @@ import type {
 } from './types';
 
 /** 唯一的数据入口；默认同源相对路径，跨域部署时用 VITE_API_BASE 指向后端。 */
-const API_BASE = (import.meta.env.VITE_API_BASE ?? '') as string;
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? '') as string;
+
+/** 任务列表的查询参数：列表接口与 SSE 推送共用一套 */
+export interface TaskQuery {
+  limit?: number;
+  since?: number;
+  status?: string;
+  withAhead?: boolean;
+}
+
+function taskQueryString(params: TaskQuery): string {
+  const query = new URLSearchParams();
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.since) query.set('since', String(params.since));
+  if (params.status) query.set('status', params.status);
+  // 排队位置要服务端一次算好：只有管理页要，别的调用不传
+  if (params.withAhead) query.set('withAhead', 'true');
+  return query.toString();
+}
+
+/** SSE 不能走 fetch：EventSource 自己拿着这个地址连 */
+export function taskStreamUrl(params: TaskQuery = {}): string {
+  const suffix = taskQueryString(params);
+  return `${API_BASE}/api/downloads/stream${suffix ? `?${suffix}` : ''}`;
+}
 
 /** 后端返回 `{code, detail}`；页面展示 detail，需要分支时用 `.code`。 */
 export class ApiError extends Error {
@@ -116,14 +140,9 @@ export const api = {
   },
 
   // 下载队列
-  fetchTasks: (params: { limit?: number; since?: number; status?: string; withAhead?: boolean } = {}) => {
-    const query = new URLSearchParams();
-    if (params.limit) query.set('limit', String(params.limit));
-    if (params.since) query.set('since', String(params.since));
-    if (params.status) query.set('status', params.status);
-    // 排队位置要服务端一条一个 COUNT：只有管理页要，全局轮询不传
-    if (params.withAhead) query.set('withAhead', 'true');
-    const suffix = query.toString();
+  /** 一次性的任务列表（首屏兜底 / 手动刷新 / SSE 连不上时的兜底）；实时数据走 taskStreamUrl */
+  fetchTasks: (params: TaskQuery = {}) => {
+    const suffix = taskQueryString(params);
     return request<DownloadTask[]>(`/api/downloads${suffix ? `?${suffix}` : ''}`);
   },
   submitTask: (threadId: number, source: string, title: string) =>

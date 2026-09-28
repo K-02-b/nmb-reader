@@ -290,3 +290,25 @@ export const TASK_STATUS_KIND: Record<TaskStatus, 'pending' | 'running' | 'done'
   images_done: 'done',
   images_failed: 'error',
 };
+
+/**
+ * 列表筛选用的三档（进行中 / 已完成 / 失败），与后端 `services/queue.py` 的
+ * `TASK_KINDS` 一一对应 —— 任务列表走实时推送后在浏览器里筛选，这份映射要保持一致。
+ */
+export const TASK_STATUS_GROUP: Record<TaskStatus, 'active' | 'done' | 'failed'> = {
+  queued: 'active',
+  downloading: 'active',
+  downloaded: 'active',
+  writing: 'active',
+  written: 'active',
+  indexing: 'active',
+  cancelling: 'active',
+  images_running: 'active',
+  indexed: 'done',
+  cancelled: 'done',
+  images_done: 'done',
+  failed: 'failed',
+  write_failed: 'failed',
+  index_failed: 'failed',
+  images_failed: 'failed',
+};

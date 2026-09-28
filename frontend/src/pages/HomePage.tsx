@@ -76,6 +76,7 @@ export function HomePage() {
     isThreadBlocked,
     isCookieBlocked,
     notify,
+    mergeTaskList,
     run,
     taskPulse,
   } = useApp();
@@ -171,6 +172,8 @@ export function HomePage() {
     const task = await run(() => api.submitTask(threadId, 'XD', ''), undefined);
     setUpdatingId(null);
     if (!task) return;
+    // 立刻进本地任务列表，不用等下一次推送
+    mergeTaskList([task]);
     if (task.status === 'queued') {
       notify(
         `已提交更新 No.${threadId}（任务 ${task.taskId}）${task.ahead > 0 ? `，前面还有 ${task.ahead} 个` : ''}`,

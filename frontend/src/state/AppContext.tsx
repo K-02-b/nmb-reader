@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
-import { DEFAULT_SETTINGS, type Bookmark, type Session, type UserSettings } from '../api/types';
+import { mergeTasks, openTaskStream } from '../api/taskStream';
+import { DEFAULT_SETTINGS, type Bookmark, type DownloadTask, type Session, type UserSettings } from '../api/types';
 
 /** 设置本地缓存一份，刷新时先上屏再与后端对齐 */
 const SETTINGS_KEY = 'xdnmb.settings';
@@ -11,8 +12,10 @@ export interface Notice {
   text: string;
 }
 
-/** 轮询后台任务的间隔 */
-const TASK_POLL_MS = 6000;
+/** 任务推送窗口（最新 N 条）：管理页就在这个窗口里筛选与翻页 */
+const TASK_STREAM_LIMIT = 200;
+/** 实时推送断了才启用的兜底轮询间隔；正常情况下一次都用不到 */
+const TASK_FALLBACK_POLL_MS = 30000;
 /** 这些状态算「任务已结束」，用来决定什么时候弹 toast */
 const TASK_DONE = ['indexed', 'written', 'images_done', 'failed', 'write_failed', 'index_failed', 'images_failed'];
 
@@ -24,6 +27,14 @@ interface AppState {
   ready: boolean;
   /** 每有一个后台任务刚结束就 +1，目录页据此刷新并播位移动画 */
   taskPulse: number;
+  /** 实时任务列表（最新 TASK_STREAM_LIMIT 条，按提交时间倒序） */
+  tasks: DownloadTask[];
+  /** SSE 是否在线；false 表示推送断了、正在按兜底间隔刷新 */
+  tasksLive: boolean;
+  /** 拉一次完整任务列表：兜底轮询与手动刷新用 */
+  refreshTasks: () => Promise<void>;
+  /** 把接口返回的任务并进列表，省得干等下一次推送 */
+  mergeTaskList: (tasks: DownloadTask[]) => void;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string, inviteCode: string) => Promise<void>;
   logout: () => void;
@@ -130,33 +141,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [session]);
 
-  // 后台任务结束就弹 toast（在任何页面都能看到），并给目录页一个刷新信号
+  // 后台任务：一条 SSE 连接推实时状态（任何页面都能收到「任务结束」的提示）。
+  // 以前是每 6 秒 fetch 一次任务列表，现在服务端只在真有变化时推，空闲只发心跳。
   const [taskPulse, setTaskPulse] = useState(0);
+  const [tasks, setTasks] = useState<DownloadTask[]>([]);
+  const [tasksLive, setTasksLive] = useState(false);
+  /** 第一份来自服务端的列表到手后，才开始比对「谁刚结束」，免得把历史任务全弹一遍 */
+  const [tasksReady, setTasksReady] = useState(false);
+  const seenDone = useRef<Set<string> | null>(null);
+
+  const refreshTasks = useCallback(async () => {
+    const list = await api.fetchTasks({ limit: TASK_STREAM_LIMIT, withAhead: true }).catch(() => null);
+    if (!list) return;
+    setTasks(list);
+    setTasksReady(true);
+  }, []);
+
+  const mergeTaskList = useCallback((changed: DownloadTask[]) => {
+    setTasks((prev) => mergeTasks(prev, changed));
+  }, []);
+
   useEffect(() => {
-    if (!session) return;
-    let seen: Set<string> | null = null;
-    const timer = window.setInterval(async () => {
-      const tasks = await api.fetchTasks({ limit: 20 }).catch(() => []);
-      const done = tasks.filter((t) => TASK_DONE.includes(t.status));
-      const ids = new Set(done.map((t) => t.taskId));
-      // 首次只登记，避免把登录前就结束的任务全弹一遍
-      if (seen === null) {
-        seen = ids;
-        return;
-      }
-      const fresh = done.filter((t) => !seen?.has(t.taskId));
-      seen = ids;
-      if (fresh.length === 0) return;
-      for (const task of fresh) {
-        const bad = task.status.endsWith('failed');
-        const what = task.kind === 'images' ? '图片本地化' : '下载';
-        const reason = bad && task.message ? `：${task.message.slice(0, 60)}` : '';
-        notify(`No.${task.threadId} ${what}${bad ? '失败' : '完成'}${reason}`, bad ? 'error' : 'ok');
-      }
-      setTaskPulse((prev) => prev + 1);
-    }, TASK_POLL_MS);
+    seenDone.current = null;
+    setTasksReady(false);
+    if (!session) {
+      setTasks([]);
+      setTasksLive(false);
+      return;
+    }
+    setTasksLive(false);
+    // 先拉一次让首屏不用等第一条推送
+    void refreshTasks();
+    return openTaskStream(
+      { limit: TASK_STREAM_LIMIT, withAhead: true },
+      {
+        onSnapshot: (list) => {
+          setTasks(list);
+          setTasksReady(true);
+        },
+        onPatch: mergeTaskList,
+        onRemove: (ids) => setTasks((prev) => prev.filter((task) => !ids.includes(task.taskId))),
+        onState: (state) => setTasksLive(state === 'live'),
+      },
+    );
+  }, [mergeTaskList, refreshTasks, session]);
+
+  // 推送断了才兜底轮询（正常情况下不会走到）；间隔放长，别把省下来的请求又打回去
+  useEffect(() => {
+    if (!session || tasksLive) return;
+    const timer = window.setInterval(() => void refreshTasks(), TASK_FALLBACK_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [notify, session]);
+  }, [refreshTasks, session, tasksLive]);
+
+  // 任务刚结束就弹 toast，并给目录页一个刷新信号
+  useEffect(() => {
+    if (!tasksReady) return;
+    const done = tasks.filter((task) => TASK_DONE.includes(task.status));
+    const ids = new Set(done.map((task) => task.taskId));
+    // 首次只登记，避免把登录前就结束的任务全弹一遍
+    if (seenDone.current === null) {
+      seenDone.current = ids;
+      return;
+    }
+    const fresh = done.filter((task) => !seenDone.current?.has(task.taskId));
+    seenDone.current = ids;
+    if (fresh.length === 0) return;
+    for (const task of fresh) {
+      const bad = task.status.endsWith('failed');
+      const what = task.kind === 'images' ? '图片本地化' : '下载';
+      const reason = bad && task.message ? `：${task.message.slice(0, 60)}` : '';
+      notify(`No.${task.threadId} ${what}${bad ? '失败' : '完成'}${reason}`, bad ? 'error' : 'ok');
+    }
+    setTaskPulse((prev) => prev + 1);
+  }, [notify, tasks, tasksReady]);
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -269,6 +326,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notices,
       ready,
       taskPulse,
+      tasks,
+      tasksLive,
+      refreshTasks,
+      mergeTaskList,
       login,
       register,
       logout,
@@ -291,6 +352,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notices,
       ready,
       taskPulse,
+      tasks,
+      tasksLive,
+      refreshTasks,
+      mergeTaskList,
       login,
       register,
       logout,

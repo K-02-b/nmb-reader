@@ -1,16 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import type {
-  CookieStatus,
-  DbStats,
-  DownloadTask,
-  Invite,
-  LogEntry,
-  Permission,
-  Tag,
-  Thread,
-  User,
+import {
+  TASK_STATUS_GROUP,
+  type CookieStatus,
+  type DbStats,
+  type DownloadTask,
+  type Invite,
+  type LogEntry,
+  type Permission,
+  type Tag,
+  type Thread,
+  type User,
 } from '../api/types';
 import { useApp } from '../state/AppContext';
 import { useTagVocab } from '../state/TagVocabContext';
@@ -69,7 +70,7 @@ const TASK_STATUS_FILTERS: Array<[string, string]> = [
 ];
 
 export function AdminPage() {
-  const { session, run, notify } = useApp();
+  const { session, run, notify, tasks: liveTasks, tasksLive, refreshTasks, mergeTaskList } = useApp();
   const { refresh: refreshVocab } = useTagVocab();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -115,12 +116,19 @@ export function AdminPage() {
   const [dbStats, setDbStats] = useState<DbStats | null>(null);
   const [cookieStatus, setCookieStatus] = useState<CookieStatus | null>(null);
 
-  const taskSince = taskDays > 0 ? Math.floor(Date.now() / 1000) - taskDays * 86400 : undefined;
+  // 任务列表来自 AppContext 里那条 SSE（服务端有变化才推），这里只做时间/状态筛选与滚动分页，
+  // 不再定时 fetch
+  const visibleTasks = useMemo(() => {
+    const since = taskDays > 0 ? Math.floor(Date.now() / 1000) - taskDays * 86400 : 0;
+    return liveTasks.filter(
+      (task) =>
+        (taskDays === 0 || task.submittedAt >= since) &&
+        (taskStatus === '' || TASK_STATUS_GROUP[task.status] === taskStatus),
+    );
+  }, [liveTasks, taskDays, taskStatus]);
   const tasks = useIncrementalList<DownloadTask>({
-    fetchPage: (limit) =>
-      api.fetchTasks({ limit, since: taskSince, status: taskStatus || undefined, withAhead: true }).catch(() => []),
+    source: visibleTasks,
     resetKey: `${taskDays}|${taskStatus}`,
-    pollMs: tab === 'tasks' ? 2000 : 0,
   });
   const logs = useIncrementalList<LogEntry>({
     fetchPage: (limit) => api.fetchLogs({ scope: logScope, level: logLevel, limit }).catch(() => []),
@@ -332,13 +340,14 @@ export function AdminPage() {
                   setSubmitHint(`任务 ${task.taskId}：${task.message ?? '已进入队列'}`);
                   setThreadId('');
                   setTitle('');
-                  tasks.reload();
+                  // 立刻上屏，不用等下一次推送
+                  mergeTaskList([task]);
                 }
               }}
             >
               提交申请
             </button>
-            <button className="btn" onClick={tasks.reload}>
+            <button className="btn" onClick={() => void refreshTasks()}>
               刷新队列
             </button>
           </div>
@@ -351,6 +360,9 @@ export function AdminPage() {
           <div className="card-title">
             <h3>下载任务（{tasks.items.length}）</h3>
             <div className="row">
+              <span className={tasksLive ? 'hint' : 'error-text'}>
+                {tasksLive ? '实时推送' : '推送已断开，按 30 秒兜底刷新'}
+              </span>
               <select className="select" value={taskDays} onChange={(e) => setTaskDays(Number(e.target.value))}>
                 {TASK_WINDOWS.map(([days, label]) => (
                   <option key={days} value={days}>
@@ -365,7 +377,7 @@ export function AdminPage() {
                   </option>
                 ))}
               </select>
-              <button className="btn btn-sm" onClick={tasks.reload}>
+              <button className="btn btn-sm" onClick={() => void refreshTasks()}>
                 刷新
               </button>
             </div>
@@ -374,8 +386,8 @@ export function AdminPage() {
           <div className="list-scroll" ref={tasks.boxRef} onScroll={tasks.onScroll}>
             <TaskTable
               tasks={tasks.items}
-              onCancel={(id) => void run(() => api.cancelTask(id), '已请求取消').then(tasks.reload)}
-              onRetry={(id) => void run(() => api.retryTask(id), '已重新提交').then(tasks.reload)}
+              onCancel={(id) => void run(() => api.cancelTask(id), '已请求取消').then((t) => t && mergeTaskList([t]))}
+              onRetry={(id) => void run(() => api.retryTask(id), '已重新提交').then((t) => t && mergeTaskList([t]))}
               onOpenThread={(id) => navigate(`/t/${id}`)}
             />
             {tasks.items.length > 0 && (
@@ -384,7 +396,9 @@ export function AdminPage() {
               </p>
             )}
           </div>
-          <p className="hint">按提交时间倒序，每次加载 10 条，滚到框底自动继续；任务进行中时每 2 秒自动刷新。</p>
+          <p className="hint">
+            按提交时间倒序，每次显示 10 条，滚到框底自动继续；进度由服务端实时推送（不再定时请求），窗口是最新 200 条。
+          </p>
         </div>
       )}
 
